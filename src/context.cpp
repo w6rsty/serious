@@ -37,7 +37,7 @@ void Context::Prepare(const std::vector<const char*>& extensions, const WindowOp
     createSwapchain(options.extent);
 
     /// RenderPass, PipelineLayout, Pipeline
-    createPipeline(options.extent);
+    createPipeline();
     createFramebuffers();
     
     /// CommandPool

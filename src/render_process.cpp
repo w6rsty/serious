@@ -42,7 +42,7 @@ void Context::createPipelineLayout() {
     pipeline_layout = device.createPipelineLayout(create_info);
 }
 
-void Context::createPipeline(vk::Extent2D window_extent) {
+void Context::createPipeline() {
     auto vert_shader_source = ReadFile("shaders/vert.spv");
     vk::ShaderModuleCreateInfo shader_module_info;
     shader_module_info.pCode = (uint32_t*)vert_shader_source.data();
@@ -72,8 +72,9 @@ void Context::createPipeline(vk::Extent2D window_extent) {
     input_assembly.setPrimitiveRestartEnable(false)
                   .setTopology(vk::PrimitiveTopology::eTriangleList);
     
-    vk::Viewport viewport(0.0f, 0.0f, window_extent.width, window_extent.height, 0.0f, 1.0f);
-    vk::Rect2D scissor({0, 0}, window_extent);
+    vk::Extent2D extent = swapchain_data.extent;
+    vk::Viewport viewport(0.0f, 0.0f, extent.width, extent.height, 0.0f, 1.0f);
+    vk::Rect2D scissor({0, 0}, extent);
     vk::PipelineViewportStateCreateInfo viewport_state;
     viewport_state.setViewports(viewport)
                   .setScissors(scissor);

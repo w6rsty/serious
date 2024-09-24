@@ -8,6 +8,8 @@
 
 namespace serious {
 
+static constexpr size_t MAX_FRAMES_IN_FLIGHT = 2;
+
 using CreateSurfaceCallback = std::function<vk::SurfaceKHR(vk::Instance)>;
 
 struct WindowOptions {
@@ -36,7 +38,7 @@ private:
     void destroySwapchain();
     void createRenderPass();
     void createPipelineLayout();
-    void createPipeline(vk::Extent2D window_extent);
+    void createPipeline();
     void destroyPipeline();
     void createFramebuffers();
     void destroyFramebuffers();
@@ -66,6 +68,13 @@ private:
         inline bool shared() const { return graphics.value() == present.value(); }
     };
 
+    struct FrameData {
+        vk::CommandBuffer cmd;
+        vk::Fence queue_submit_fence;
+        vk::Semaphore swapchain_acquire_semaphore;
+        vk::Semaphore swapchain_release_semaphore;
+    };
+
     vk::Instance instance;
     vk::SurfaceKHR surface;
     QueueFamilyIndices queue_indices;
@@ -82,11 +91,9 @@ private:
     vk::Pipeline pipeline;
 
     vk::CommandPool command_pool;
-    vk::CommandBuffer command_buffer;
 
-    vk::Fence queue_submit_fence;
-    vk::Semaphore swapchain_acquire_semaphore;
-    vk::Semaphore swapchain_release_semaphore;
+    uint32_t current_frame = 0;
+    std::vector<FrameData> frame_datas;
 };
 
 }

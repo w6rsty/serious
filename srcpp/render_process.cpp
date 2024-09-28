@@ -1,4 +1,4 @@
-#include "serious/context.hpp"
+#include "serious/VulkanContext.hpp"
 #include "serious/tool.hpp"
 
 namespace serious {
@@ -29,6 +29,7 @@ void Context::createRenderPass() {
               .setSrcAccessMask(vk::AccessFlagBits::eNone)
               .setDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
               .setDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite);
+
 
     vk::RenderPassCreateInfo create_info;
     create_info.setAttachments(color_attachment)
@@ -117,7 +118,7 @@ void Context::createPipeline() {
                .setLayout(pipeline_layout);
     auto result = device.createGraphicsPipeline(nullptr, create_info);
     if (result.result != vk::Result::eSuccess) {
-        FatalError("failed to create graphics pipeline");
+        Fatal("failed to create graphics pipeline");
     }
     pipeline = result.value;
 }

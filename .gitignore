@@ -2,3 +2,4 @@
 build
 thirdparty/*
 shaders/*.spv
+rd.cap

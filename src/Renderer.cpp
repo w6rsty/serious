@@ -16,6 +16,9 @@ Renderer::Renderer(VulkanDevice* device, VulkanSwapchain* swapchain)
     , m_CmdPool(nullptr)
     , m_ClearValue({ {{0.1f, 0.1f, 0.1f, 1.0f}} })
     , m_RenderPass(nullptr)
+    , m_ShaderModules({})
+    , m_PipelineLayout(nullptr)
+    , m_Pipeline(nullptr)
 {
     m_CmdPool = CreateRef<VulkanCommandPool>(m_Device);
     m_CmdPool->Create(m_Device->GetGraphicsQueue().get());
@@ -25,6 +28,13 @@ Renderer::Renderer(VulkanDevice* device, VulkanSwapchain* swapchain)
 
     m_RenderPass = CreateRef<VulkanRenderPass>(device);
     m_Swapchain->CreateFramebuffers(m_RenderPass.get());
+
+    m_ShaderModules.emplace_back(device, "shaders/vert.spv", VK_SHADER_STAGE_VERTEX_BIT);    
+    m_ShaderModules.emplace_back(device, "shaders/frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);    
+
+    m_PipelineLayout = CreateRef<VulkanPipelineLayout>(device);
+    VkExtent2D size = m_Swapchain->GetExtent();
+    m_Pipeline = CreateRef<VulkanPipeline>(device, m_ShaderModules, *m_RenderPass, size.width, size.height);
 }
 
 Renderer::~Renderer()
@@ -32,6 +42,12 @@ Renderer::~Renderer()
     VK_CHECK_RESULT(vkQueueWaitIdle(m_Device->GetGraphicsQueue()->GetHandle()));
     VK_CHECK_RESULT(vkQueueWaitIdle(m_Device->GetPresentQueue()->GetHandle()));
     
+    m_Pipeline->Destroy();
+    m_PipelineLayout->Destroy();
+    for (VulkanShaderModule& shaderModule : m_ShaderModules) {
+        shaderModule.Destroy();
+    }
+
     m_Swapchain->DestroyFrameBuffers();
     m_RenderPass->Destroy();
 
@@ -49,13 +65,17 @@ void Renderer::OnUpdate()
 
     uint32_t index = m_Swapchain->AcquireNextImage(&m_ImageAvailableSem);
 
+    VkCommandBuffer cmd = m_CmdBuf->GetHandle();
+
     m_CmdBuf->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-    m_RenderPass->CmdBegin(m_CmdBuf->GetHandle(), m_Swapchain->GetFramebuffer(index), &m_ClearValue, VkRect2D {{0, 0}, m_Swapchain->GetExtent()});
-    
-    
-    m_RenderPass->CmdEnd(m_CmdBuf->GetHandle());
+    m_RenderPass->CmdBegin(cmd, m_Swapchain->GetFramebuffer(index), &m_ClearValue, VkRect2D {{0, 0}, m_Swapchain->GetExtent()});
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline->GetHandle());
+    vkCmdDraw(cmd, 3, 1, 0, 0);
+    m_RenderPass->CmdEnd(cmd);
     m_CmdBuf->End();
+
     SubmitGraphics(m_CmdBuf.get(), &m_ImageAvailableSem, &m_RenderFinishedSem, &m_Fence);
+    
     m_Swapchain->Present(&m_RenderFinishedSem);
 }
 

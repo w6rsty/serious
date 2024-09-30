@@ -10,7 +10,7 @@ struct AppState
     SDL_Window* window;
     int width = 1024;
     int height = 720;
-    bool vsync = false;
+    bool vsync = true;
 };
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])

@@ -2,6 +2,7 @@
 
 #include "serious/VulkanSyncs.hpp"
 #include "serious/VulkanUtils.hpp"
+#include "serious/VulkanPipeline.hpp"
 
 namespace serious
 {
@@ -11,6 +12,9 @@ class VulkanSwapchain;
 class VulkanCommandBuffer;
 class VulkanCommandPool;
 class VulkanRenderPass;
+class VulkanShaderModule;
+class VulkanPipelineLayout;
+class VulkanPipeline;
 
 class Renderer final
 {
@@ -38,6 +42,9 @@ private:
 
     VkClearValue m_ClearValue;
     Ref<VulkanRenderPass> m_RenderPass;
+    std::vector<VulkanShaderModule> m_ShaderModules;
+    Ref<VulkanPipelineLayout> m_PipelineLayout; 
+    Ref<VulkanPipeline> m_Pipeline;
 };
 
 }

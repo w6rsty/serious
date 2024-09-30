@@ -1,6 +1,7 @@
 #pragma once
 
 #include "serious/VulkanUtils.hpp"
+#include "serious/VulkanPipeline.hpp"
 
 #include <vulkan/vulkan.h>
 
@@ -16,7 +17,7 @@ public:
     VulkanCommandPool(VulkanDevice* device); 
     ~VulkanCommandPool();
 
-    void Create(VulkanQueue* queue);
+    void Create(const VulkanQueue& queue);
     void Destroy();
 
     inline VkCommandPool GetHandle() const { return m_CmdPool; }
@@ -36,6 +37,8 @@ public:
 
     void Begin(VkCommandBufferUsageFlags flags = 0);
     void End();
+    void BindGraphicsPipeline(const VulkanPipeline& pipeline);
+    void Draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
 
     inline VkCommandBuffer GetHandle() const { return m_CmdBuf; }
 private:

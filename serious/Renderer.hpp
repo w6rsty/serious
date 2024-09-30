@@ -8,13 +8,13 @@ namespace serious
 {
 
 class VulkanDevice;
-class VulkanSwapchain;
-class VulkanCommandBuffer;
-class VulkanCommandPool;
-class VulkanRenderPass;
-class VulkanShaderModule;
-class VulkanPipelineLayout;
 class VulkanPipeline;
+class VulkanSwapchain;
+class VulkanRenderPass;
+class VulkanCommandPool;
+class VulkanShaderModule;
+class VulkanCommandBuffer;
+class VulkanPipelineLayout;
 
 class Renderer final
 {
@@ -25,7 +25,7 @@ public:
     void OnUpdate();
 private:
     void SubmitGraphics(
-        VulkanCommandBuffer* cmdBuf,
+        const VulkanCommandBuffer& cmdBuf,
         VulkanSemaphore* imageAvailableSem,
         VulkanSemaphore* renderFinishedSem,
         VulkanFence* fence);

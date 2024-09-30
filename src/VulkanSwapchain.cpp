@@ -2,6 +2,8 @@
 #include "serious/VulkanContext.hpp"
 #include "serious/VulkanPass.hpp"
 
+#include <Tracy.hpp>
+
 namespace serious
 {
 
@@ -185,7 +187,7 @@ void VulkanSwapchain::OnResize()
     Create(m_Extent.width, m_Extent.height, m_EnableVSync, &recreateInfo);
 }
 
-void VulkanSwapchain::CreateFramebuffers(VulkanRenderPass* pass)
+void VulkanSwapchain::CreateFramebuffers(VulkanRenderPass& pass)
 {
     m_Framebuffers.resize(m_Images.size());
     
@@ -193,7 +195,7 @@ void VulkanSwapchain::CreateFramebuffers(VulkanRenderPass* pass)
 
     VkFramebufferCreateInfo framebufferInfo = {};
     framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    framebufferInfo.renderPass = pass->GetHandle();
+    framebufferInfo.renderPass = pass.GetHandle();
     framebufferInfo.attachmentCount = 1;
     framebufferInfo.width = m_Extent.width;
     framebufferInfo.height = m_Extent.height;
@@ -228,6 +230,8 @@ void VulkanSwapchain::Present(VulkanSemaphore* outSemaphore)
 
 uint32_t VulkanSwapchain::AcquireNextImage(VulkanSemaphore* outSemaphore)
 {
+    ZoneScopedN("Acquire Image");
+
     VkDevice device = m_Device->GetHandle();
     /// Signal to m_PresentComplete 
     VkResult result = vkAcquireNextImageKHR(device, m_Swapchain, UINT64_MAX, outSemaphore->GetHandle(), VK_NULL_HANDLE, &m_CurrentImageIndex);

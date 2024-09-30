@@ -3,6 +3,8 @@
 #include "serious/VulkanSwapchain.hpp"
 #include "serious/VulkanPass.hpp"
 
+#include <Tracy.hpp>
+
 namespace serious
 {
 
@@ -20,14 +22,15 @@ Renderer::Renderer(VulkanDevice* device, VulkanSwapchain* swapchain)
     , m_PipelineLayout(nullptr)
     , m_Pipeline(nullptr)
 {
+    ZoneScopedN("Renderer Init");
     m_CmdPool = CreateRef<VulkanCommandPool>(m_Device);
-    m_CmdPool->Create(m_Device->GetGraphicsQueue().get());
+    m_CmdPool->Create(*(m_Device->GetGraphicsQueue()));
 
     m_CmdBuf = CreateRef<VulkanCommandBuffer>(device, m_CmdPool);
     m_CmdBuf->Allocate();
 
     m_RenderPass = CreateRef<VulkanRenderPass>(device);
-    m_Swapchain->CreateFramebuffers(m_RenderPass.get());
+    m_Swapchain->CreateFramebuffers(*m_RenderPass);
 
     m_ShaderModules.emplace_back(device, "shaders/vert.spv", VK_SHADER_STAGE_VERTEX_BIT);    
     m_ShaderModules.emplace_back(device, "shaders/frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);    
@@ -69,19 +72,21 @@ void Renderer::OnUpdate()
 
     m_CmdBuf->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
     m_RenderPass->CmdBegin(cmd, m_Swapchain->GetFramebuffer(index), &m_ClearValue, VkRect2D {{0, 0}, m_Swapchain->GetExtent()});
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline->GetHandle());
-    vkCmdDraw(cmd, 3, 1, 0, 0);
+    m_CmdBuf->BindGraphicsPipeline(*m_Pipeline);
+    m_CmdBuf->Draw(3, 1, 0, 0);
     m_RenderPass->CmdEnd(cmd);
     m_CmdBuf->End();
 
-    SubmitGraphics(m_CmdBuf.get(), &m_ImageAvailableSem, &m_RenderFinishedSem, &m_Fence);
+    SubmitGraphics(*m_CmdBuf, &m_ImageAvailableSem, &m_RenderFinishedSem, &m_Fence);
     
     m_Swapchain->Present(&m_RenderFinishedSem);
+    
+    FrameMark;
 }
 
-void Renderer::SubmitGraphics(VulkanCommandBuffer* cmdBuf, VulkanSemaphore* imageAvailableSem, VulkanSemaphore* renderFinishedSem, VulkanFence* fence)
+void Renderer::SubmitGraphics(const VulkanCommandBuffer& cmdBuf, VulkanSemaphore* imageAvailableSem, VulkanSemaphore* renderFinishedSem, VulkanFence* fence)
 {
-    VkCommandBuffer cmdBufHandle = cmdBuf->GetHandle();
+    VkCommandBuffer cmdBufHandle = cmdBuf.GetHandle();
     VkSemaphore imageAvailableSemHandle = imageAvailableSem->GetHandle();
     VkSemaphore renderFinishedSemHandle = renderFinishedSem->GetHandle();
     VkFence fenceHandle = fence->GetHandle();

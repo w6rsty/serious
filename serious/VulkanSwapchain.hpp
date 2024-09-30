@@ -11,9 +11,9 @@ namespace serious
 {
 
 class VulkanDevice;
+class VulkanRenderPass;
 class VulkanCommandPool;
 class VulkanCommandBuffer;
-class VulkanRenderPass;
 
 using GetWindowSizeFunc = std::function<VkExtent2D()>;
 
@@ -33,7 +33,7 @@ public:
     void Present(VulkanSemaphore* outSemaphore);
     uint32_t AcquireNextImage(VulkanSemaphore* outSemaphore);
     void OnResize();
-    void CreateFramebuffers(VulkanRenderPass* pass);
+    void CreateFramebuffers(VulkanRenderPass& pass);
     void DestroyFrameBuffers();
 
     inline void SetGetSize(GetWindowSizeFunc func) { m_GetWindowSizeFunc = func; }

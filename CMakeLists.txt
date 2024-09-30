@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 3.20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 project(serious LANGUAGES CXX)
 
+option(ENABLE_PROFILER OFF)
+set(TRACY_ROOT thirdparty/tracy/public)
+if(ENABLE_PROFILER)
+    add_compile_definitions(TRACY_ENABLE)
+endif()
+
 include(cmake/CopyFile.cmake)
 include(cmake/FindVulkan.cmake)
 include(cmake/FindSDL3.cmake)
@@ -21,6 +27,8 @@ target_compile_features(serious PUBLIC cxx_std_17)
 target_compile_definitions(serious PUBLIC
     "$<$<CONFIG:DEBUG>:ENABLE_VALIDATION>"
 )
+target_sources(serious PRIVATE ${TRACY_ROOT}/TracyClient.cpp)
+target_include_directories(serious PRIVATE ${TRACY_ROOT}/tracy)
 
 target_compile_options(serious PRIVATE
     -Wall                   # 启用所有常见的警告

@@ -1,5 +1,6 @@
 .cache
 build
-thirdparty/*
 shaders/*.spv
 rd.cap
+thirdparty
+target

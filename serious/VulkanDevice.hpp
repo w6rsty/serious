@@ -5,9 +5,6 @@
 
 #include <vulkan/vulkan.h>
 
-#include <map>
-#include <thread>
-
 namespace serious
 {
 
@@ -19,8 +16,8 @@ public:
     VulkanQueue(VulkanDevice* device, uint32_t familyIndex);
     ~VulkanQueue();
 
-    inline VkQueue GetQueue() const { return m_Queue; }
-    inline uint32_t GetQueueIndex() const { return m_QueueIndex; }
+    inline VkQueue GetHandle() const { return m_Queue; }
+    inline uint32_t GetHandleIndex() const { return m_QueueIndex; }
     inline uint32_t GetFamilyIndex() const { return m_FamilyIndex; }
 private:
     VkQueue m_Queue;
@@ -37,7 +34,6 @@ public:
 
     void Destroy();
     void SetupPresentQueue(VkSurfaceKHR surface);
-    VkCommandBuffer GetCommandBuffer();
 
     inline VkDevice GetHandle() const { return m_Device; } 
     inline VkPhysicalDevice GetGpuHandle() const { return m_Gpu; }
@@ -52,8 +48,6 @@ private:
     VkDevice m_Device;
     VkPhysicalDevice m_Gpu;
     VkPhysicalDeviceProperties m_GpuProps;
-
-    std::map<std::thread::id, Ref<VulkanCommandPool>> m_CommandPools;
 
     Ref<VulkanQueue> m_GraphicsQueue;
     Ref<VulkanQueue> m_ComputeQueue;

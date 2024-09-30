@@ -24,6 +24,7 @@ public:
     static inline VkInstance GetVulkanInstance() { return m_VulkanInstance; }
     
     inline Ref<VulkanDevice> GetDevice() { return m_Device; }
+    inline VkDevice GetDeviceHandle() { return m_Device->GetHandle(); }
     inline VkPhysicalDevice GetGpuHandle() { return m_Device->GetGpuHandle(); }
     inline VkSurfaceKHR GetSurfaceHandle() { return m_Surface; }
     inline Ref<VulkanSwapchain> GetSwapchain() { return m_Swapchain; }

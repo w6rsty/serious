@@ -4,21 +4,23 @@
 namespace serious
 {
 
-void Application::Init(SurfaceCreateFunc&& surfaceCreateFunc, uint32_t width, uint32_t height, bool vsync)
+void Application::Init(SurfaceCreateFunc&& surfaceCreateFunc, uint32_t width, uint32_t height, bool vsync, GetWindowSizeFunc&& getWindowSizeFunc)
 {
-    VulkanContext::Init(std::move(surfaceCreateFunc), width, height, vsync);
+    VulkanContext& context = VulkanContext::Init(std::move(surfaceCreateFunc), width, height, vsync);
+    context.GetSwapchain()->SetGetSize(getWindowSizeFunc);
+
+    s_Renderer = CreateRef<Renderer>(context.GetDevice().get(), context.GetSwapchain().get());
 }
 
 void Application::Shutdown()
 {
+    s_Renderer.reset();
     VulkanContext::Shutdown();
 }
 
-void Application::OnResize(uint32_t width, uint32_t height, bool vsync)
+void Application::OnUpdate()
 {
-    VulkanSwapchainRecreateInfo recreateInfo;
-    recreateInfo.oldSwapchain = VulkanContext::Get().GetSwapchain()->GetHandle();
-    VulkanContext::Get().GetSwapchain()->Create(width, height, vsync, &recreateInfo);
+    s_Renderer->OnUpdate();
 }
 
 }

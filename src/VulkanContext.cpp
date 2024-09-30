@@ -130,7 +130,7 @@ void VulkanContext::InitSurface(SurfaceCreateFunc&& surfaceCreateFunc)
 
 void VulkanContext::InitSwapchain(uint32_t width, uint32_t height, bool vsync)
 {
-    m_Swapchain = CreateRef<VulkanSwapchain>(width, height, vsync);
+    m_Swapchain = CreateRef<VulkanSwapchain>(m_Device.get(), width, height, vsync);
 }
 
 }

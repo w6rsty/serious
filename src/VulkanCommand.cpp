@@ -1,44 +1,74 @@
 #include "serious/VulkanCommand.hpp"
-#include "serious/VulkanContext.hpp"
+#include "serious/VulkanDevice.hpp"
 
 namespace serious
 {
 
-VulkanCommandPool::VulkanCommandPool()
-    : m_GraphicCommandPool(VK_NULL_HANDLE)
+VulkanCommandPool::VulkanCommandPool(VulkanDevice* device)
+    : m_CmdPool(VK_NULL_HANDLE)
+    , m_Device(device)
 {
-    Ref<VulkanDevice> device = VulkanContext::Get().GetDevice();
-    
-    VkCommandPoolCreateInfo poolInfo = {};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    // TODO: assign queue family index
-    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    VK_CHECK_RESULT(vkCreateCommandPool(device->GetHandle(), &poolInfo, nullptr, &m_GraphicCommandPool));
 }
 
 VulkanCommandPool::~VulkanCommandPool()
 {
-    Ref<VulkanDevice> device = VulkanContext::Get().GetDevice();
+}
 
-    if (m_GraphicCommandPool != VK_NULL_HANDLE) {
-        vkDestroyCommandPool(device->GetHandle(), m_GraphicCommandPool, nullptr);
+void VulkanCommandPool::Destroy()
+{
+    if (m_CmdPool != VK_NULL_HANDLE) {
+        vkDestroyCommandPool(m_Device->GetHandle(), m_CmdPool, nullptr);
     }
 }
 
-VkCommandBuffer VulkanCommandPool::AllocateCommandBuffer()
+
+void VulkanCommandPool::Create(VulkanQueue* queue)
 {
-    Ref<VulkanDevice> device = VulkanContext::Get().GetDevice();
+    VkCommandPoolCreateInfo poolInfo = {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.queueFamilyIndex = queue->GetFamilyIndex();
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    VK_CHECK_RESULT(vkCreateCommandPool(m_Device->GetHandle(), &poolInfo, nullptr, &m_CmdPool));
+}
 
-    VkCommandBuffer commandBuffer;
+VulkanCommandBuffer::VulkanCommandBuffer(VulkanDevice* device, const Ref<VulkanCommandPool>& cmdPool)
+    : m_CmdBuf(VK_NULL_HANDLE)
+    , m_CmdPool(cmdPool)
+    , m_Device(device)
+{
+}
 
+void VulkanCommandBuffer::Allocate()
+{
     VkCommandBufferAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = m_GraphicCommandPool; 
+    allocInfo.commandPool = m_CmdPool->GetHandle(); 
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandBufferCount = 1;
-    VK_CHECK_RESULT(vkAllocateCommandBuffers(device->GetHandle(), &allocInfo, &commandBuffer)); 
+    VK_CHECK_RESULT(vkAllocateCommandBuffers(m_Device->GetHandle(), &allocInfo, &m_CmdBuf));
+    Info("allocate command buffer");
+}
 
-    return commandBuffer;
+void VulkanCommandBuffer::Free()
+{
+    vkFreeCommandBuffers(m_Device->GetHandle(), m_CmdPool->GetHandle(), 1, &m_CmdBuf);
+}
+
+VulkanCommandBuffer::~VulkanCommandBuffer()
+{
+}
+
+void VulkanCommandBuffer::Begin(VkCommandBufferUsageFlags flags)
+{
+    VkCommandBufferBeginInfo cmdBufBegin = {};
+    cmdBufBegin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    cmdBufBegin.flags = flags;
+    VK_CHECK_RESULT(vkBeginCommandBuffer(m_CmdBuf, &cmdBufBegin));
+}
+
+void VulkanCommandBuffer::End()
+{
+    VK_CHECK_RESULT(vkEndCommandBuffer(m_CmdBuf));
 }
 
 }

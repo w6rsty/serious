@@ -20,7 +20,6 @@ VulkanQueue::~VulkanQueue()
 VulkanDevice::VulkanDevice()
     : m_Device(VK_NULL_HANDLE)
     , m_Gpu(VK_NULL_HANDLE)
-    , m_CommandPools({})
     , m_GraphicsQueue(nullptr)
     , m_ComputeQueue(nullptr)
     , m_TransferQueue(nullptr)
@@ -139,7 +138,6 @@ VulkanDevice::~VulkanDevice()
 
 void VulkanDevice::Destroy()
 {
-    m_CommandPools.clear();
     vkDeviceWaitIdle(m_Device);
     vkDestroyDevice(m_Device, nullptr);
 }
@@ -164,11 +162,6 @@ void VulkanDevice::SetupPresentQueue(VkSurfaceKHR surface)
         m_PresentQueue = m_GraphicsQueue;
     }
     Info("use queue family {} for presentation", m_PresentQueue->GetFamilyIndex());
-}
-
-VkCommandBuffer VulkanDevice::GetCommandBuffer()
-{
-    return GetOrCreateThreadLocalCommandPool()->AllocateCommandBuffer();
 }
 
 void VulkanDevice::SelectGpu()
@@ -199,18 +192,6 @@ void VulkanDevice::SelectGpu()
     }
 
     Info("using device: {}", m_GpuProps.deviceName);
-}
-
-Ref<VulkanCommandPool> VulkanDevice::GetOrCreateThreadLocalCommandPool()
-{
-    std::thread::id threadId = std::this_thread::get_id();
-    if (auto it = m_CommandPools.find(threadId); it != m_CommandPools.end()) {
-        return it->second;
-    }
-
-    Ref<VulkanCommandPool> commandPool = CreateRef<VulkanCommandPool>();
-    m_CommandPools[threadId] = commandPool;
-    return commandPool;
 }
 
 }

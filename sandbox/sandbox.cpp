@@ -26,11 +26,21 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
         return SDL_APP_FAILURE;
     }
 
-    serious::Application::Init([&state](VkInstance instance) {
-        VkSurfaceKHR surface;
-        SDL_Vulkan_CreateSurface(state.window, instance, nullptr, &surface);
-        return surface;
-    }, state.width, state.height, state.vsync);
+    serious::Application::Init(
+        [&state](VkInstance instance) {
+            VkSurfaceKHR surface;
+            SDL_Vulkan_CreateSurface(state.window, instance, nullptr, &surface);
+            return surface;
+        },
+        state.width,
+        state.height,
+        state.vsync,
+        [&state]() {
+            int width = 0, height = 0;
+            SDL_GetWindowSize(state.window, &width, &height);
+            return VkExtent2D { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
+        }
+    );
 
     return SDL_APP_CONTINUE;
 }
@@ -41,20 +51,13 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
     if (event->type == SDL_EVENT_QUIT) {
         return SDL_APP_SUCCESS;
     }
-    if (event->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
-        if (state.width == event->window.data1 && state.height == event->window.data2) {
-            return SDL_APP_CONTINUE;
-        }
-        state.width = event->window.data1;
-        state.height = event->window.data2;
-        serious::Application::OnResize(state.width, state.height, state.vsync);
-    }
 
     return SDL_APP_CONTINUE;
 }
 
 SDL_AppResult SDL_AppIterate(void *appstate)
 {
+    serious::Application::OnUpdate();
     return SDL_APP_CONTINUE;
 }
 

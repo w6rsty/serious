@@ -35,11 +35,18 @@ fmt::print("\n")
 fmt::print(fmt::fg(fmt::color::red), __VA_ARGS__); \
 fmt::print("\n")
 
-/// Terminate program with message
-#define Fatal(...) \
-fmt::print(fmt::fg(fmt::color::red), __VA_ARGS__); \
-fmt::print("\n"); \
-std::terminate()
+#if defined(DEBUG)
+    #define Fatal(...) \
+    fmt::print(fmt::fg(fmt::color::red), __VA_ARGS__); \
+    fmt::print("\n"); \
+    __debugbreak(); \
+    std::terminate()
+#else
+    #define Fatal(...) \
+    fmt::print(fmt::fg(fmt::color::red), __VA_ARGS__); \
+    fmt::print("\n"); \
+    std::terminate()
+#endif
 
 #if defined(DEBUG) || defined(ENABLE_VALIDATION)
     static constexpr bool s_Validation = true;

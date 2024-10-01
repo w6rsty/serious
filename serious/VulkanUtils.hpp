@@ -48,16 +48,21 @@ fmt::print("\n")
     std::terminate()
 #endif
 
-#if defined(DEBUG) || defined(ENABLE_VALIDATION)
+#if defined(_DEBUG) || defined(ENABLE_VALIDATION)
     static constexpr bool s_Validation = true;
 #else
     static constexpr bool s_Validation = false;
 #endif
 
+
+#if defined(_DEBUG)
 #define VK_CHECK_RESULT(result) \
 if (result != VK_SUCCESS) { \
     Fatal("Vulkan error"); \
 }
+#else
+#define VK_CHECK_RESULT(result) result
+#endif
 
 /// From https://github.com/KhronosGroup/Vulkan-Samples
 static inline bool validateExtension(const std::vector<const char*>& required, const std::vector<VkExtensionProperties>& available)

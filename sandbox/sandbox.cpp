@@ -1,4 +1,5 @@
-#include "serious/Application.hpp"
+#include "serious/RHI.hpp"
+#include "serious/VulkanRHI.hpp"
 
 #define SDL_MAIN_USE_CALLBACKS 1
 #include <SDL3/SDL.h>
@@ -8,9 +9,8 @@
 struct AppState
 {
     SDL_Window* window;
-    int width = 1024;
-    int height = 720;
-    bool vsync = true;
+    serious::RHI* rhi;
+    serious::WindowSpec spec {1024, 720, false};
 };
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
@@ -20,25 +20,22 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
     *appstate = new AppState;
     AppState& state = *static_cast<AppState*>(*appstate);
     SDL_WindowFlags flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
-    state.window = SDL_CreateWindow("serious", state.width, state.height, flags);
+    state.window = SDL_CreateWindow("serious", state.spec.width, state.spec.height, flags);
     if (!state.window) {
         SDL_Log("failed to create window");
         return SDL_APP_FAILURE;
     }
-
-    serious::Application::Init(
-        [&state](VkInstance instance) {
+    state.rhi = new serious::VulkanRHI;
+    state.rhi->Init(
+        [&state](void* instance) {
             VkSurfaceKHR surface;
-            SDL_Vulkan_CreateSurface(state.window, instance, nullptr, &surface);
+            SDL_Vulkan_CreateSurface(state.window, static_cast<VkInstance>(instance), nullptr, &surface);
             return surface;
         },
-        state.width,
-        state.height,
-        state.vsync,
         [&state]() {
             int width = 0, height = 0;
             SDL_GetWindowSize(state.window, &width, &height);
-            return VkExtent2D { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
+            return serious::WindowSpec{static_cast<uint32_t>(width), static_cast<uint32_t>(height), state.spec.vsync};
         }
     );
 
@@ -57,7 +54,8 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event)
 
 SDL_AppResult SDL_AppIterate(void *appstate)
 {
-    serious::Application::OnUpdate();
+    AppState* state = static_cast<AppState*>(appstate);
+    state->rhi->Update();
     return SDL_APP_CONTINUE;
 }
 
@@ -65,8 +63,8 @@ void SDL_AppQuit(void *appstate)
 {
     AppState* state = static_cast<AppState*>(appstate);
 
-    serious::Application::Shutdown();
-
+    state->rhi->Shutdown();
+    delete state->rhi;
     SDL_DestroyWindow(state->window);
     delete state;
 }

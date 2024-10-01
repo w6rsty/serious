@@ -1,5 +1,5 @@
-#include "serious/VulkanCommand.hpp"
-#include "serious/VulkanDevice.hpp"
+#include "serious/vulkan/VulkanCommand.hpp"
+#include "serious/vulkan/VulkanDevice.hpp"
 
 namespace serious
 {
@@ -16,9 +16,7 @@ VulkanCommandPool::~VulkanCommandPool()
 
 void VulkanCommandPool::Destroy()
 {
-    if (m_CmdPool != VK_NULL_HANDLE) {
-        vkDestroyCommandPool(m_Device->GetHandle(), m_CmdPool, nullptr);
-    }
+    vkDestroyCommandPool(m_Device->GetHandle(), m_CmdPool, nullptr);
 }
 
 
@@ -31,7 +29,7 @@ void VulkanCommandPool::Create(const VulkanQueue& queue)
     VK_CHECK_RESULT(vkCreateCommandPool(m_Device->GetHandle(), &poolInfo, nullptr, &m_CmdPool));
 }
 
-VulkanCommandBuffer::VulkanCommandBuffer(VulkanDevice* device, const Ref<VulkanCommandPool>& cmdPool)
+VulkanCommandBuffer::VulkanCommandBuffer(VulkanDevice* device, VulkanCommandPool* cmdPool)
     : m_CmdBuf(VK_NULL_HANDLE)
     , m_CmdPool(cmdPool)
     , m_Device(device)

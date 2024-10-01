@@ -1,5 +1,4 @@
-#include "serious/VulkanDevice.hpp"
-#include "serious/VulkanContext.hpp"
+#include "serious/vulkan/VulkanDevice.hpp"
 
 namespace serious
 {
@@ -17,7 +16,12 @@ VulkanQueue::~VulkanQueue()
 {
 }
 
-VulkanDevice::VulkanDevice()
+void VulkanQueue::Submit(const VkSubmitInfo& submitInfo, VkFence fence)
+{
+    VK_CHECK_RESULT(vkQueueSubmit(m_Queue, 1, &submitInfo, fence));
+}
+
+VulkanDevice::VulkanDevice(VkInstance instance)
     : m_Device(VK_NULL_HANDLE)
     , m_Gpu(VK_NULL_HANDLE)
     , m_GraphicsQueue(nullptr)
@@ -25,7 +29,7 @@ VulkanDevice::VulkanDevice()
     , m_TransferQueue(nullptr)
     , m_PresentQueue(nullptr)
 {
-    SelectGpu();
+    SelectGpu(instance);
 
     uint32_t deviceExtensionCount = 0;
     vkEnumerateDeviceExtensionProperties(m_Gpu, nullptr, &deviceExtensionCount, nullptr);
@@ -164,16 +168,15 @@ void VulkanDevice::SetupPresentQueue(VkSurfaceKHR surface)
     Info("use queue family {} for presentation", m_PresentQueue->GetFamilyIndex());
 }
 
-void VulkanDevice::SelectGpu()
+void VulkanDevice::SelectGpu(VkInstance instance)
 {
-    /// Don't use VulkanContext::Get() here, because this function is still in the middle of
+    /// Don't use VulkanInstance::Get() here, because this function is still in the middle of
     /// context's construction, but VkInstance has been created already
-    VkInstance vkIntance = VulkanContext::GetVulkanInstance();
     uint32_t physicalDeviceCount = 0;
-    VK_CHECK_RESULT(vkEnumeratePhysicalDevices(vkIntance, &physicalDeviceCount, nullptr));
+    VK_CHECK_RESULT(vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, nullptr));
     if (physicalDeviceCount == 0) { Fatal("No device support Vulkan found"); }
     std::vector<VkPhysicalDevice> physicalDevices(physicalDeviceCount);
-    VK_CHECK_RESULT(vkEnumeratePhysicalDevices(vkIntance, &physicalDeviceCount, physicalDevices.data()));
+    VK_CHECK_RESULT(vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, physicalDevices.data()));
 
     bool foundSuitableGpu = false;
     for (const auto& gpu : physicalDevices) {

@@ -1,7 +1,6 @@
 #pragma once
 
-#include "serious/VulkanUtils.hpp"
-#include "serious/VulkanPipeline.hpp"
+#include "serious/vulkan/VulkanPipeline.hpp"
 
 #include <vulkan/vulkan.h>
 
@@ -29,7 +28,7 @@ private:
 class VulkanCommandBuffer final
 {
 public:
-    VulkanCommandBuffer(VulkanDevice* device, const Ref<VulkanCommandPool>& cmdPool);
+    VulkanCommandBuffer(VulkanDevice* device, VulkanCommandPool* cmdPool);
     ~VulkanCommandBuffer();
 
     void Allocate();
@@ -43,7 +42,7 @@ public:
     inline VkCommandBuffer GetHandle() const { return m_CmdBuf; }
 private:
     VkCommandBuffer m_CmdBuf;
-    Ref<VulkanCommandPool> m_CmdPool;
+    VulkanCommandPool* m_CmdPool;
     VulkanDevice* m_Device;
 };
 

@@ -1,12 +1,13 @@
 #pragma once
 
 #include "serious/VulkanUtils.hpp"
-#include "serious/VulkanCommand.hpp"
 
 #include <vulkan/vulkan.h>
 
 namespace serious
 {
+
+class VulkanCommandPool;
 
 class VulkanDevice;
 
@@ -15,6 +16,8 @@ class VulkanQueue final
 public:
     VulkanQueue(VulkanDevice* device, uint32_t familyIndex);
     ~VulkanQueue();
+
+    void Submit(const VkSubmitInfo& submitInfo, VkFence fence);
 
     inline VkQueue GetHandle() const { return m_Queue; }
     inline uint32_t GetHandleIndex() const { return m_QueueIndex; }
@@ -29,7 +32,7 @@ private:
 class VulkanDevice final
 {
 public:
-    VulkanDevice();
+    VulkanDevice(VkInstance instance);
     ~VulkanDevice();
 
     void Destroy();
@@ -42,7 +45,7 @@ public:
     inline Ref<VulkanQueue> GetTransferQueue() { return m_TransferQueue; }
     inline Ref<VulkanQueue> GetPresentQueue() { return m_PresentQueue; }
 private:
-    void SelectGpu();
+    void SelectGpu(VkInstance instance);
     Ref<VulkanCommandPool> GetOrCreateThreadLocalCommandPool();
 private:
     VkDevice m_Device;

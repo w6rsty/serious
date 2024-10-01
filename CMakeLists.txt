@@ -18,7 +18,7 @@ find_program(GLSLC glslc REQUIRED)
 execute_process(COMMAND ${GLSLC} ${PROJECT_SOURCE_DIR}/shaders/shader.vert -o ${PROJECT_SOURCE_DIR}/shaders/vert.spv)
 execute_process(COMMAND ${GLSLC} ${PROJECT_SOURCE_DIR}/shaders/shader.frag -o ${PROJECT_SOURCE_DIR}/shaders/frag.spv)
 
-aux_source_directory(src SRC)
+file(GLOB_RECURSE SRC src/*.cpp)
 
 add_library(serious STATIC ${SRC})
 target_include_directories(serious PUBLIC .)

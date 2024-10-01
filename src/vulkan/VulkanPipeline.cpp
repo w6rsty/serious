@@ -1,6 +1,7 @@
-#include "serious/VulkanPipeline.hpp"
-#include "serious/VulkanDevice.hpp"
-#include "serious/VulkanPass.hpp"
+#include "serious/vulkan/VulkanPipeline.hpp"
+#include "serious/vulkan/VulkanDevice.hpp"
+#include "serious/vulkan/VulkanPass.hpp"
+#include "serious/vulkan/VulkanSwapchain.hpp"
 #include "serious/VulkanUtils.hpp"
 
 namespace serious
@@ -25,9 +26,7 @@ VulkanShaderModule::~VulkanShaderModule()
 
 void VulkanShaderModule::Destroy()
 {
-    if (m_ShaderModule) {
-        vkDestroyShaderModule(m_Device->GetHandle(), m_ShaderModule, nullptr);
-    }
+    vkDestroyShaderModule(m_Device->GetHandle(), m_ShaderModule, nullptr);
 }
 
 
@@ -46,22 +45,18 @@ VulkanPipelineLayout::~VulkanPipelineLayout()
 
 void VulkanPipelineLayout::Destroy()
 {
-    if (m_PipelineLayout) {
-        vkDestroyPipelineLayout(m_Device->GetHandle(), m_PipelineLayout, nullptr);
-    }
+    vkDestroyPipelineLayout(m_Device->GetHandle(), m_PipelineLayout, nullptr);
 }
 
 VulkanPipeline::VulkanPipeline(
         VulkanDevice* device,
         const std::vector<VulkanShaderModule>& shaderModules,
         VulkanRenderPass& renderPass,
-        uint32_t width,
-        uint32_t height)
+        VulkanSwapchain& swapchain)
     : m_Pipeline(VK_NULL_HANDLE)
     , m_Layout(device)
     , m_Device(device)
 {
-
     VkPipelineVertexInputStateCreateInfo vtxInputState = {};
     vtxInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
@@ -70,16 +65,17 @@ VulkanPipeline::VulkanPipeline(
     inputAsmState.primitiveRestartEnable = VK_FALSE;
     inputAsmState.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
+    VkExtent2D extent = swapchain.GetExtent();
     VkViewport viewport {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = static_cast<float>(width);
-    viewport.height = static_cast<float>(height);
+    viewport.width = extent.width;
+    viewport.height = extent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
     VkRect2D scissor;
     scissor.offset = {0, 0};
-    scissor.extent = {width, height};
+    scissor.extent = extent;
     VkPipelineViewportStateCreateInfo viewportState = {};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
@@ -141,9 +137,7 @@ VulkanPipeline::~VulkanPipeline()
 void VulkanPipeline::Destroy()
 {
     m_Layout.Destroy();
-    if (m_Pipeline) {
-        vkDestroyPipeline(m_Device->GetHandle(), m_Pipeline, nullptr);
-    }
+    vkDestroyPipeline(m_Device->GetHandle(), m_Pipeline, nullptr);
 }
     
 }

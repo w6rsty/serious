@@ -1,26 +1,25 @@
-#include "serious/VulkanSwapchain.hpp"
-#include "serious/VulkanContext.hpp"
-#include "serious/VulkanPass.hpp"
+#include "serious/vulkan/VulkanSwapchain.hpp"
+#include "serious/vulkan/VulkanDevice.hpp"
+#include "serious/vulkan/VulkanPass.hpp"
+#include "serious/vulkan/VulkanWindow.hpp"
 
 #include <Tracy.hpp>
 
 namespace serious
 {
 
-VulkanSwapchain::VulkanSwapchain(VulkanDevice* device, uint32_t width, uint32_t height, bool vsync)
+VulkanSwapchain::VulkanSwapchain(VulkanDevice* device, VulkanWindow* window)
     : m_Swapchain(VK_NULL_HANDLE)
     , m_Device(device)
+    , m_Window(window)
     , m_CurrentImageIndex(0)
-    , m_Extent({})
+    , m_WindowSpec({})
     , m_ColorFormat(VK_FORMAT_UNDEFINED)
     , m_ColorSpace(VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
-    , m_EnableVSync(vsync)
     , m_Images({})
     , m_ImageViews({})
     , m_Framebuffers({})
-    , m_GetWindowSizeFunc(nullptr)
 {
-    Create(width, height, vsync, nullptr);
 }
 
 VulkanSwapchain::~VulkanSwapchain()
@@ -29,34 +28,32 @@ VulkanSwapchain::~VulkanSwapchain()
 
 void VulkanSwapchain::Destroy()
 {
-    if (m_Swapchain != VK_NULL_HANDLE) {
-        VK_CHECK_RESULT(vkQueueWaitIdle(m_Device->GetGraphicsQueue()->GetHandle()));
-        VK_CHECK_RESULT(vkQueueWaitIdle(m_Device->GetPresentQueue()->GetHandle()));
+    VK_CHECK_RESULT(vkQueueWaitIdle(m_Device->GetGraphicsQueue()->GetHandle()));
+    VK_CHECK_RESULT(vkQueueWaitIdle(m_Device->GetPresentQueue()->GetHandle()));
 
-        VkDevice device = m_Device->GetHandle();
-        for (VkImageView imageView : m_ImageViews) {
-            vkDestroyImageView(device, imageView, nullptr);
-        }
-        vkDestroySwapchainKHR(device, m_Swapchain, nullptr);
+    VkDevice device = m_Device->GetHandle();
+    for (VkImageView imageView : m_ImageViews) {
+        vkDestroyImageView(device, imageView, nullptr);
     }
+    vkDestroySwapchainKHR(device, m_Swapchain, nullptr);
 }
 
-void VulkanSwapchain::Create(uint32_t width, uint32_t height, bool vsync, VulkanSwapchainRecreateInfo* recreateInfo)
+void VulkanSwapchain::Create(VulkanSwapchainRecreateInfo* recreateInfo)
 {
+    m_WindowSpec = m_Window->GetWindowSpec();
+    VkSurfaceKHR surface = m_Window->GetSurfaceHandle();
+
     VkPhysicalDevice gpu = m_Device->GetGpuHandle();
-    VkSurfaceKHR surface = VulkanContext::Get().GetSurfaceHandle();
 
     VkSurfaceCapabilitiesKHR surfaceCaps;
     VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu, surface, &surfaceCaps));
     /// See https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkSurfaceCapabilitiesKHR.html
     /// Special value (0xFFFFFFFF, 0xFFFFFFFF) means the extent size is determined by targeting surface
-    uint32_t sizeX = (surfaceCaps.currentExtent.width == 0xFFFFFFFF) ? width : surfaceCaps.currentExtent.width;
-    uint32_t sizeY = (surfaceCaps.currentExtent.height == 0xFFFFFFFF) ? height : surfaceCaps.currentExtent.height;
+    uint32_t sizeX = (surfaceCaps.currentExtent.width == 0xFFFFFFFF) ? m_WindowSpec.width : surfaceCaps.currentExtent.width;
+    uint32_t sizeY = (surfaceCaps.currentExtent.height == 0xFFFFFFFF) ? m_WindowSpec.height : surfaceCaps.currentExtent.height;
     if (surfaceCaps.currentExtent.width == 0 || surfaceCaps.currentExtent.height == 0) {
         return; /// Cancel creation
     }
-    m_Extent.width = width;
-    m_Extent.height = height;
 
     uint32_t desiredImageCount = surfaceCaps.minImageCount + 1;
     uint32_t supportedMaxImageCount = surfaceCaps.maxImageCount;
@@ -83,7 +80,7 @@ void VulkanSwapchain::Create(uint32_t width, uint32_t height, bool vsync, Vulkan
     VK_CHECK_RESULT(vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &surfacePresentModeCount, surfacePresentModes.data()));
     VkPresentModeKHR swapchainPresentMode;
     swapchainPresentMode = VK_PRESENT_MODE_FIFO_KHR; /// Default support for vsync
-    if (!vsync) {
+    if (!m_WindowSpec.vsync) {
         for (const VkPresentModeKHR& presentMode : surfacePresentModes) {
             /// Better one
             if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
@@ -134,13 +131,13 @@ void VulkanSwapchain::Create(uint32_t width, uint32_t height, bool vsync, Vulkan
     swapchainInfo.compositeAlpha = compositeAlpha;
     swapchainInfo.clipped = VK_TRUE;
     swapchainInfo.oldSwapchain = VK_NULL_HANDLE;
-    if (recreateInfo != nullptr) {
+    if (recreateInfo) {
         swapchainInfo.oldSwapchain = recreateInfo->oldSwapchain;
     }
     VK_CHECK_RESULT(vkCreateSwapchainKHR(m_Device->GetHandle(), &swapchainInfo, nullptr, &m_Swapchain));
     Info("create swapchain with {} {} {} num images {} {}x{}", VulkanPresentModeString(swapchainPresentMode), VulkanFormatString(m_ColorFormat), VulkanColorSpaceString(m_ColorSpace), desiredImageCount, sizeX, sizeY);
 
-    if (recreateInfo != nullptr) {
+    if (recreateInfo) {
         vkQueueWaitIdle(m_Device->GetGraphicsQueue()->GetHandle());
         vkQueueWaitIdle(m_Device->GetPresentQueue()->GetHandle());
         vkDestroySwapchainKHR(m_Device->GetHandle(), recreateInfo->oldSwapchain, nullptr);
@@ -181,10 +178,9 @@ void VulkanSwapchain::Create(uint32_t width, uint32_t height, bool vsync, Vulkan
 
 void VulkanSwapchain::OnResize()
 {
-    m_Extent = m_GetWindowSizeFunc();
     VulkanSwapchainRecreateInfo recreateInfo;
     recreateInfo.oldSwapchain = m_Swapchain;
-    Create(m_Extent.width, m_Extent.height, m_EnableVSync, &recreateInfo);
+    Create(&recreateInfo);
 }
 
 void VulkanSwapchain::CreateFramebuffers(VulkanRenderPass& pass)
@@ -197,8 +193,8 @@ void VulkanSwapchain::CreateFramebuffers(VulkanRenderPass& pass)
     framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     framebufferInfo.renderPass = pass.GetHandle();
     framebufferInfo.attachmentCount = 1;
-    framebufferInfo.width = m_Extent.width;
-    framebufferInfo.height = m_Extent.height;
+    framebufferInfo.width = m_WindowSpec.width;
+    framebufferInfo.height = m_WindowSpec.height;
     framebufferInfo.layers = 1;
     for (size_t i = 0; i < m_Framebuffers.size(); ++i) {
         framebufferInfo.pAttachments = &m_ImageViews[i];
@@ -244,7 +240,5 @@ uint32_t VulkanSwapchain::AcquireNextImage(VulkanSemaphore* outSemaphore)
     }
     return m_CurrentImageIndex;
 }
-
-
 
 }

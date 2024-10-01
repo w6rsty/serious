@@ -1,15 +1,16 @@
-#include "serious/VulkanPass.hpp"
-#include "serious/VulkanContext.hpp"
+#include "serious/vulkan/VulkanPass.hpp"
+#include "serious/vulkan/VulkanSwapchain.hpp"
+#include "serious/vulkan/VulkanDevice.hpp"
 
 namespace serious
 {
 
-VulkanRenderPass::VulkanRenderPass(VulkanDevice* device)
+VulkanRenderPass::VulkanRenderPass(VulkanDevice* device, const VulkanSwapchain& swapchain)
     : m_RenderPass(VK_NULL_HANDLE)
     , m_Device(device)
 {
     VkAttachmentDescription attachmentDesc = {};
-    attachmentDesc.format = VulkanContext::Get().GetSwapchain()->GetColorFormat();
+    attachmentDesc.format = swapchain.GetColorFormat();
     attachmentDesc.samples = VK_SAMPLE_COUNT_1_BIT;
     attachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -52,9 +53,7 @@ VulkanRenderPass::~VulkanRenderPass()
 
 void VulkanRenderPass::Destroy()
 {
-    if (m_RenderPass) {
-        vkDestroyRenderPass(m_Device->GetHandle(), m_RenderPass, nullptr);
-    }
+    vkDestroyRenderPass(m_Device->GetHandle(), m_RenderPass, nullptr);
 }
 
 void VulkanRenderPass::CmdBegin(

@@ -9,6 +9,7 @@ namespace serious
 {
 
 class VulkanDevice;
+class VulkanSwapchain;
 class VulkanRenderPass;
 
 class VulkanShaderModule final
@@ -47,8 +48,7 @@ public:
         VulkanDevice* device,
         const std::vector<VulkanShaderModule>& shaderModules,
         VulkanRenderPass& renderPass,
-        uint32_t width,
-        uint32_t height);
+        VulkanSwapchain& swapchain);
     ~VulkanPipeline();
     void Destroy();
     

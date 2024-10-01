@@ -1,8 +1,8 @@
 #pragma once
 
-#include "serious/VulkanSyncs.hpp"
+#include "serious/vulkan/VulkanSyncs.hpp"
+#include "serious/vulkan/VulkanPipeline.hpp"
 #include "serious/VulkanUtils.hpp"
-#include "serious/VulkanPipeline.hpp"
 
 namespace serious
 {
@@ -16,23 +16,18 @@ class VulkanShaderModule;
 class VulkanCommandBuffer;
 class VulkanPipelineLayout;
 
-class Renderer final
+class VulkanRenderer final
 {
 public:
-    Renderer(VulkanDevice* device, VulkanSwapchain* swapchain);
-    ~Renderer();
+    VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain);
+    ~VulkanRenderer();
+    void Destroy();
 
     void OnUpdate();
 private:
-    void SubmitGraphics(
-        const VulkanCommandBuffer& cmdBuf,
-        VulkanSemaphore* imageAvailableSem,
-        VulkanSemaphore* renderFinishedSem,
-        VulkanFence* fence);
-private:
     VulkanDevice* m_Device;
     VulkanSwapchain* m_Swapchain;
-
+    
     VulkanFence m_Fence;
     VulkanSemaphore m_ImageAvailableSem;
     VulkanSemaphore m_RenderFinishedSem;

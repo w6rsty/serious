@@ -17,6 +17,7 @@ public:
     void Destroy();
 
     inline VkSemaphore GetHandle() const { return m_Semaphore; }
+    inline VkSemaphore* GetHandlePtr() { return &m_Semaphore; }
 private:
     VkSemaphore m_Semaphore;
     VulkanDevice* m_Device;

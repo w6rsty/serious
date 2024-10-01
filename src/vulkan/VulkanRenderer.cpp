@@ -1,14 +1,15 @@
-#include "serious/Renderer.hpp"
-#include "serious/VulkanDevice.hpp"
-#include "serious/VulkanSwapchain.hpp"
-#include "serious/VulkanPass.hpp"
+#include "serious/vulkan/VulkanRenderer.hpp"
+#include "serious/vulkan/VulkanDevice.hpp"
+#include "serious/vulkan/VulkanSwapchain.hpp"
+#include "serious/vulkan/VulkanPass.hpp"
+#include "serious/vulkan/VulkanCommand.hpp"
 
 #include <Tracy.hpp>
 
 namespace serious
 {
 
-Renderer::Renderer(VulkanDevice* device, VulkanSwapchain* swapchain)
+VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
     : m_Device(device)
     , m_Swapchain(swapchain)
     , m_Fence(device, VK_FENCE_CREATE_SIGNALED_BIT)
@@ -22,25 +23,28 @@ Renderer::Renderer(VulkanDevice* device, VulkanSwapchain* swapchain)
     , m_PipelineLayout(nullptr)
     , m_Pipeline(nullptr)
 {
-    ZoneScopedN("Renderer Init");
+    ZoneScopedN("VulkanRenderer Init");
     m_CmdPool = CreateRef<VulkanCommandPool>(m_Device);
     m_CmdPool->Create(*(m_Device->GetGraphicsQueue()));
 
-    m_CmdBuf = CreateRef<VulkanCommandBuffer>(device, m_CmdPool);
+    m_CmdBuf = CreateRef<VulkanCommandBuffer>(device, m_CmdPool.get());
     m_CmdBuf->Allocate();
 
-    m_RenderPass = CreateRef<VulkanRenderPass>(device);
+    m_RenderPass = CreateRef<VulkanRenderPass>(device, *m_Swapchain);
     m_Swapchain->CreateFramebuffers(*m_RenderPass);
 
     m_ShaderModules.emplace_back(device, "shaders/vert.spv", VK_SHADER_STAGE_VERTEX_BIT);    
     m_ShaderModules.emplace_back(device, "shaders/frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);    
 
     m_PipelineLayout = CreateRef<VulkanPipelineLayout>(device);
-    VkExtent2D size = m_Swapchain->GetExtent();
-    m_Pipeline = CreateRef<VulkanPipeline>(device, m_ShaderModules, *m_RenderPass, size.width, size.height);
+    m_Pipeline = CreateRef<VulkanPipeline>(device, m_ShaderModules, *m_RenderPass, *m_Swapchain);
 }
 
-Renderer::~Renderer()
+VulkanRenderer::~VulkanRenderer()
+{
+}
+
+void VulkanRenderer::Destroy()
 {
     VK_CHECK_RESULT(vkQueueWaitIdle(m_Device->GetGraphicsQueue()->GetHandle()));
     VK_CHECK_RESULT(vkQueueWaitIdle(m_Device->GetPresentQueue()->GetHandle()));
@@ -62,7 +66,7 @@ Renderer::~Renderer()
     m_RenderFinishedSem.Destroy();
 }
 
-void Renderer::OnUpdate()
+void VulkanRenderer::OnUpdate()
 {
     m_Fence.WaitAndReset();
 
@@ -77,32 +81,22 @@ void Renderer::OnUpdate()
     m_RenderPass->CmdEnd(cmd);
     m_CmdBuf->End();
 
-    SubmitGraphics(*m_CmdBuf, &m_ImageAvailableSem, &m_RenderFinishedSem, &m_Fence);
-    
-    m_Swapchain->Present(&m_RenderFinishedSem);
-    
-    FrameMark;
-}
-
-void Renderer::SubmitGraphics(const VulkanCommandBuffer& cmdBuf, VulkanSemaphore* imageAvailableSem, VulkanSemaphore* renderFinishedSem, VulkanFence* fence)
-{
-    VkCommandBuffer cmdBufHandle = cmdBuf.GetHandle();
-    VkSemaphore imageAvailableSemHandle = imageAvailableSem->GetHandle();
-    VkSemaphore renderFinishedSemHandle = renderFinishedSem->GetHandle();
-    VkFence fenceHandle = fence->GetHandle();
-
     VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &imageAvailableSemHandle;
+    submitInfo.pWaitSemaphores = m_ImageAvailableSem.GetHandlePtr();
     submitInfo.pWaitDstStageMask = waitStages;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &cmdBufHandle;
+    submitInfo.pCommandBuffers = &cmd;
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &renderFinishedSemHandle;
+    submitInfo.pSignalSemaphores = m_RenderFinishedSem.GetHandlePtr();
 
-    VK_CHECK_RESULT(vkQueueSubmit(m_Device->GetGraphicsQueue()->GetHandle(), 1, &submitInfo, fenceHandle));
+    m_Device->GetGraphicsQueue()->Submit(submitInfo, m_Fence.GetHandle());
+    
+    m_Swapchain->Present(&m_RenderFinishedSem);
+    
+    FrameMark;
 }
 
 }

@@ -1,5 +1,5 @@
-#include "serious/VulkanSyncs.hpp"
-#include "serious/VulkanDevice.hpp"
+#include "serious/vulkan/VulkanSyncs.hpp"
+#include "serious/vulkan/VulkanDevice.hpp"
 
 namespace serious
 {

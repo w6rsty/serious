@@ -1,5 +1,5 @@
-#include "serious/VulkanContext.hpp"
-#include "serious/VulkanDevice.hpp"
+#include "serious/vulkan/VulkanContext.hpp"
+#include "serious/VulkanUtils.hpp"
 
 #include <vector>
 
@@ -34,10 +34,9 @@ static inline std::vector<const char*> getOptimalValidationLayer(const std::vect
 	return {};
 }
 
-VulkanContext::VulkanContext()
-    : m_DebugUtilsMessenger(VK_NULL_HANDLE)
-    , m_Device(nullptr)
-    , m_Surface(VK_NULL_HANDLE)
+VulkanInstance::VulkanInstance()
+    : m_Instance(VK_NULL_HANDLE)
+    , m_DebugUtilsMessenger(VK_NULL_HANDLE)
 {
     /// Instance extensions
     uint32_t instanceExtensionCount = 0;    
@@ -80,7 +79,7 @@ VulkanContext::VulkanContext()
     instanceInfo.ppEnabledExtensionNames = requiredInstanceExtensions.data();
     instanceInfo.enabledLayerCount = static_cast<uint32_t>(requiredInstanceLayers.size());
     instanceInfo.ppEnabledLayerNames = requiredInstanceLayers.data();
-    VK_CHECK_RESULT(vkCreateInstance(&instanceInfo, nullptr, &m_VulkanInstance));
+    VK_CHECK_RESULT(vkCreateInstance(&instanceInfo, nullptr, &m_Instance));
 
     /// Debug messenger
     VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerInfo = {};
@@ -88,49 +87,17 @@ VulkanContext::VulkanContext()
     debugUtilsMessengerInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
     debugUtilsMessengerInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
     debugUtilsMessengerInfo.pfnUserCallback = VulkanDebugUtilsMessengerCallback;
-    m_DebugUtilsMessenger = CreateDebugUtilsMessengerEXT(m_VulkanInstance, debugUtilsMessengerInfo);
+    m_DebugUtilsMessenger = CreateDebugUtilsMessengerEXT(m_Instance, debugUtilsMessengerInfo);
 }
 
-VulkanContext::~VulkanContext()
+VulkanInstance::~VulkanInstance()
 {
-    m_Swapchain->Destroy();
-    vkDestroySurfaceKHR(m_VulkanInstance, m_Surface, nullptr);
-    m_Device->Destroy();
-    DestroyDebugUtilsMessengerEXT(m_VulkanInstance, m_DebugUtilsMessenger);
-    if (m_VulkanInstance != VK_NULL_HANDLE) {
-        vkDestroyInstance(m_VulkanInstance, nullptr);
-        m_VulkanInstance = VK_NULL_HANDLE;
-    }
 }
 
-VulkanContext& VulkanContext::Init(SurfaceCreateFunc&& surfaceCreateFunc, uint32_t width, uint32_t height, bool vsync)
+void VulkanInstance::Destroy()
 {
-    m_Instance = new VulkanContext;
-    m_Instance->InitDevice();
-    m_Instance->InitSurface(std::move(surfaceCreateFunc));
-    m_Instance->InitSwapchain(width, height, vsync);
-    return *m_Instance;
-}
-
-void VulkanContext::Shutdown()
-{
-    delete m_Instance;
-}
-
-void VulkanContext::InitDevice()
-{
-    m_Device = CreateRef<VulkanDevice>();
-}
-
-void VulkanContext::InitSurface(SurfaceCreateFunc&& surfaceCreateFunc)
-{
-    m_Surface = surfaceCreateFunc(m_VulkanInstance);
-    m_Device->SetupPresentQueue(m_Surface);
-}
-
-void VulkanContext::InitSwapchain(uint32_t width, uint32_t height, bool vsync)
-{
-    m_Swapchain = CreateRef<VulkanSwapchain>(m_Device.get(), width, height, vsync);
+    DestroyDebugUtilsMessengerEXT(m_Instance, m_DebugUtilsMessenger);
+    vkDestroyInstance(m_Instance, nullptr);
 }
 
 }

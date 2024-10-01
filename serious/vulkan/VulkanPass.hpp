@@ -6,11 +6,12 @@ namespace serious
 {
 
 class VulkanDevice;
+class VulkanSwapchain;
 
 class VulkanRenderPass final
 {
 public:
-    VulkanRenderPass(VulkanDevice* device);
+    VulkanRenderPass(VulkanDevice* device, const VulkanSwapchain& swapchain);
     ~VulkanRenderPass();
     void Destroy();
 

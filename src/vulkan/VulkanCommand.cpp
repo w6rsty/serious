@@ -4,10 +4,16 @@
 namespace serious
 {
 
-VulkanCommandPool::VulkanCommandPool(VulkanDevice* device)
+VulkanCommandPool::VulkanCommandPool(VulkanDevice* device, VulkanQueue* queue)
     : m_CmdPool(VK_NULL_HANDLE)
     , m_Device(device)
+    , m_Queue(queue)
 {
+    VkCommandPoolCreateInfo poolInfo = {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.queueFamilyIndex = m_Queue->GetFamilyIndex();
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    VK_CHECK_RESULT(vkCreateCommandPool(m_Device->GetHandle(), &poolInfo, nullptr, &m_CmdPool));
 }
 
 VulkanCommandPool::~VulkanCommandPool()
@@ -17,16 +23,6 @@ VulkanCommandPool::~VulkanCommandPool()
 void VulkanCommandPool::Destroy()
 {
     vkDestroyCommandPool(m_Device->GetHandle(), m_CmdPool, nullptr);
-}
-
-
-void VulkanCommandPool::Create(const VulkanQueue& queue)
-{
-    VkCommandPoolCreateInfo poolInfo = {};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = queue.GetFamilyIndex();
-    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    VK_CHECK_RESULT(vkCreateCommandPool(m_Device->GetHandle(), &poolInfo, nullptr, &m_CmdPool));
 }
 
 VulkanCommandBuffer::VulkanCommandBuffer(VulkanDevice* device, VulkanCommandPool* cmdPool)
@@ -49,7 +45,9 @@ void VulkanCommandBuffer::Allocate()
 
 void VulkanCommandBuffer::Free()
 {
+    m_CmdPool->m_Queue->WaitIdle();
     vkFreeCommandBuffers(m_Device->GetHandle(), m_CmdPool->GetHandle(), 1, &m_CmdBuf);
+    Info("free command buffer");
 }
 
 VulkanCommandBuffer::~VulkanCommandBuffer()
@@ -67,6 +65,11 @@ void VulkanCommandBuffer::Begin(VkCommandBufferUsageFlags flags)
 void VulkanCommandBuffer::End()
 {
     VK_CHECK_RESULT(vkEndCommandBuffer(m_CmdBuf));
+}
+
+void VulkanCommandBuffer::Reset()
+{
+    VK_CHECK_RESULT(vkResetCommandBuffer(m_CmdBuf, 0));
 }
 
 void VulkanCommandBuffer::BindGraphicsPipeline(const VulkanPipeline& pipeline)

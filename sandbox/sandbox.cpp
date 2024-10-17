@@ -1,5 +1,5 @@
-#include "serious/RHI.hpp"
 #include "serious/VulkanRHI.hpp"
+#include <SDL3/SDL_video.h>
 
 #define SDL_MAIN_USE_CALLBACKS 1
 #include <SDL3/SDL.h>
@@ -10,7 +10,7 @@ struct AppState
 {
     SDL_Window* window;
     serious::RHI* rhi;
-    serious::WindowSpec spec {1024, 720, false};
+    serious::WindowSpec spec {800, 600, false};
 };
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
@@ -19,7 +19,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 
     *appstate = new AppState;
     AppState& state = *static_cast<AppState*>(*appstate);
-    SDL_WindowFlags flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
+    SDL_WindowFlags flags = SDL_WINDOW_VULKAN;
     state.window = SDL_CreateWindow("serious", state.spec.width, state.spec.height, flags);
     if (!state.window) {
         SDL_Log("failed to create window");
@@ -67,4 +67,4 @@ void SDL_AppQuit(void *appstate)
     delete state->rhi;
     SDL_DestroyWindow(state->window);
     delete state;
-}
+} 

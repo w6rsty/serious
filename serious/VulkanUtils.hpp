@@ -44,6 +44,7 @@ fmt::print("\n")
 #else
     #define Fatal(...) \
     fmt::print(fmt::fg(fmt::color::red), __VA_ARGS__); \
+    fmt::print(fmt::fg(fmt::color::red), " At {} {} {}\n", __FILE__, __LINE__, __FUNCTION__); \
     fmt::print("\n"); \
     std::terminate()
 #endif
@@ -58,7 +59,7 @@ fmt::print("\n")
 #if defined(_DEBUG)
 #define VK_CHECK_RESULT(result) \
 if (result != VK_SUCCESS) { \
-    Fatal("Vulkan error"); \
+    Error("Vulkan error : {}", (uint32_t)result); \
 }
 #else
 #define VK_CHECK_RESULT(result) result

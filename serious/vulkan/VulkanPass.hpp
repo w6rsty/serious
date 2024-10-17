@@ -15,12 +15,7 @@ public:
     ~VulkanRenderPass();
     void Destroy();
 
-    void CmdBegin(
-        VkCommandBuffer cmdBuf,
-        VkFramebuffer framebuffer,
-        VkClearValue* clearValue,
-        VkRect2D area,
-        VkSubpassContents contents = VK_SUBPASS_CONTENTS_INLINE);
+    void CmdBegin(VkCommandBuffer cmdBuf, VkRenderPassBeginInfo& beginInfo, VkSubpassContents contents = VK_SUBPASS_CONTENTS_INLINE);
     void CmdNext(VkCommandBuffer cmdBuf, VkSubpassContents contents);
     void CmdEnd(VkCommandBuffer cmdBuf);
 

@@ -14,7 +14,7 @@ public:
     ~VulkanWindow();
     void Destroy();
 
-    inline WindowSpec GetWindowSpec() const { return m_GetWindowSpecFunc(); }    
+    inline WindowSpec   GetWindowSpec() const { return m_GetWindowSpecFunc(); }    
     inline VkSurfaceKHR GetSurfaceHandle() const { return m_Surface; }
 private:
     VkSurfaceKHR m_Surface;

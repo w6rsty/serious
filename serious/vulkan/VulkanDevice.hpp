@@ -18,6 +18,7 @@ public:
     ~VulkanQueue();
 
     void Submit(const VkSubmitInfo& submitInfo, VkFence fence);
+    void WaitIdle();
 
     inline VkQueue GetHandle() const { return m_Queue; }
     inline uint32_t GetHandleIndex() const { return m_QueueIndex; }
@@ -38,7 +39,7 @@ public:
     void Destroy();
     void SetupPresentQueue(VkSurfaceKHR surface);
 
-    inline VkDevice GetHandle() const { return m_Device; } 
+    inline VkDevice         GetHandle() const { return m_Device; } 
     inline VkPhysicalDevice GetGpuHandle() const { return m_Gpu; }
     inline Ref<VulkanQueue> GetGraphicsQueue() { return m_GraphicsQueue; }
     inline Ref<VulkanQueue> GetComputeQueue() { return m_ComputeQueue; }

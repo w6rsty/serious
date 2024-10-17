@@ -21,6 +21,11 @@ void VulkanQueue::Submit(const VkSubmitInfo& submitInfo, VkFence fence)
     VK_CHECK_RESULT(vkQueueSubmit(m_Queue, 1, &submitInfo, fence));
 }
 
+void VulkanQueue::WaitIdle()
+{
+    VK_CHECK_RESULT(vkQueueWaitIdle(m_Queue));
+}
+
 VulkanDevice::VulkanDevice(VkInstance instance)
     : m_Device(VK_NULL_HANDLE)
     , m_Gpu(VK_NULL_HANDLE)
@@ -142,7 +147,6 @@ VulkanDevice::~VulkanDevice()
 
 void VulkanDevice::Destroy()
 {
-    vkDeviceWaitIdle(m_Device);
     vkDestroyDevice(m_Device, nullptr);
 }
 

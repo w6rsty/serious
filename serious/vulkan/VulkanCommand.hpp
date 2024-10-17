@@ -13,16 +13,17 @@ class VulkanDevice;
 class VulkanCommandPool final
 {
 public:
-    VulkanCommandPool(VulkanDevice* device); 
+    VulkanCommandPool(VulkanDevice* device, VulkanQueue* queue); 
     ~VulkanCommandPool();
-
-    void Create(const VulkanQueue& queue);
     void Destroy();
 
     inline VkCommandPool GetHandle() const { return m_CmdPool; }
 private:
     VkCommandPool m_CmdPool;
     VulkanDevice* m_Device;
+    VulkanQueue* m_Queue;
+
+    friend class VulkanCommandBuffer;
 };
 
 class VulkanCommandBuffer final
@@ -36,6 +37,7 @@ public:
 
     void Begin(VkCommandBufferUsageFlags flags = 0);
     void End();
+    void Reset();
     void BindGraphicsPipeline(const VulkanPipeline& pipeline);
     void Draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
 

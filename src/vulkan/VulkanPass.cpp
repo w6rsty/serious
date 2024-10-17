@@ -14,6 +14,8 @@ VulkanRenderPass::VulkanRenderPass(VulkanDevice* device, const VulkanSwapchain& 
     attachmentDesc.samples = VK_SAMPLE_COUNT_1_BIT;
     attachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     attachmentDesc.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
@@ -56,22 +58,9 @@ void VulkanRenderPass::Destroy()
     vkDestroyRenderPass(m_Device->GetHandle(), m_RenderPass, nullptr);
 }
 
-void VulkanRenderPass::CmdBegin(
-    VkCommandBuffer cmdBuf,
-    VkFramebuffer framebuffer,
-    VkClearValue* clearValue,
-    VkRect2D area, 
-    VkSubpassContents contents)
+void VulkanRenderPass::CmdBegin(VkCommandBuffer cmdBuf, VkRenderPassBeginInfo& beginInfo, VkSubpassContents contents)
 {
-    VkRenderPassBeginInfo passBegin = {};
-    passBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    passBegin.renderPass = m_RenderPass;
-    passBegin.clearValueCount = 1;
-    passBegin.pClearValues = clearValue;
-    passBegin.framebuffer = framebuffer;
-    passBegin.renderArea = area;
-
-    vkCmdBeginRenderPass(cmdBuf, &passBegin, contents);
+    vkCmdBeginRenderPass(cmdBuf, &beginInfo, contents);
 }
 
 void VulkanRenderPass::CmdNext(VkCommandBuffer cmdBuf, VkSubpassContents contents)

@@ -11,6 +11,7 @@ VulkanSemaphore::VulkanSemaphore(VulkanDevice* device)
     VkSemaphoreCreateInfo semaInfo = {};
     semaInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     VK_CHECK_RESULT(vkCreateSemaphore(device->GetHandle(), &semaInfo, nullptr, &m_Semaphore));
+    // Info("Created semaphore: 0x{:x}", (uint64_t)m_Semaphore);
 }
 
 VulkanSemaphore::~VulkanSemaphore()
@@ -30,6 +31,7 @@ VulkanFence::VulkanFence(VulkanDevice* device, VkFenceCreateFlags flags)
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = flags;
     VK_CHECK_RESULT(vkCreateFence(m_Device->GetHandle(), &fenceInfo, nullptr, &m_Fence));
+    // Info("Created fence: 0x{:x}", (uint64_t)m_Fence);
 }
 
 VulkanFence::~VulkanFence()
@@ -43,7 +45,7 @@ void VulkanFence::Destroy()
 
 void VulkanFence::Wait() const
 {
-    VK_CHECK_RESULT(vkWaitForFences(m_Device->GetHandle(), 1, &m_Fence, VK_FALSE, UINT64_MAX));
+    VK_CHECK_RESULT(vkWaitForFences(m_Device->GetHandle(), 1, &m_Fence, VK_TRUE, UINT64_MAX));
 }
 
 void VulkanFence::Reset() const

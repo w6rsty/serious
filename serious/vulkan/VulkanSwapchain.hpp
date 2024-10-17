@@ -5,10 +5,12 @@
 
 #include <vulkan/vulkan.h>
 
-#include <vector>
+#include <functional>
 
 namespace serious
 {
+
+#define INVALID_IMAGE_INDEX UINT32_MAX
 
 class VulkanDevice;
 class VulkanRenderPass;
@@ -16,10 +18,7 @@ class VulkanCommandPool;
 class VulkanCommandBuffer;
 class VulkanWindow;
 
-struct VulkanSwapchainRecreateInfo
-{
-    VkSwapchainKHR oldSwapchain = VK_NULL_HANDLE;
-};
+using SwapchainRecreationCallback = std::function<void()>;
 
 class VulkanSwapchain final
 {
@@ -27,34 +26,23 @@ public:
     VulkanSwapchain(VulkanDevice* device, VulkanWindow* window);
     ~VulkanSwapchain();
 
-    void Create(VulkanSwapchainRecreateInfo* recreateInfo);
+    void Create();
     void Destroy();
     void Present(VulkanSemaphore* outSemaphore);
-    uint32_t AcquireNextImage(VulkanSemaphore* outSemaphore);
-    void OnResize();
-    void CreateFramebuffers(VulkanRenderPass& pass);
-    void DestroyFrameBuffers();
+    void AcquireImage(VulkanSemaphore* outSemaphore, uint32_t& imageIndex);
 
-    inline VkExtent2D GetExtent() const { return {m_WindowSpec.width, m_WindowSpec.height}; }
-    inline VkFormat GetColorFormat() const { return m_ColorFormat; }
-    inline VkImage GetImage(size_t index) const { return m_Images[index]; }
-    inline VkImageView GetImageView(size_t index) const { return m_ImageViews[index]; }
-    inline VkFramebuffer GetFramebuffer(size_t index) const { return m_Framebuffers[index]; }
+    inline VkExtent2D     GetExtent() const { return {m_WindowSpec.width, m_WindowSpec.height}; }
+    inline VkFormat       GetColorFormat() const { return m_ColorFormat; }
     inline VkSwapchainKHR GetHandle() const { return m_Swapchain; }
 private:
     VkSwapchainKHR m_Swapchain;
     VulkanDevice* m_Device;
     VulkanWindow* m_Window;
 
-    uint32_t m_CurrentImageIndex;
-
     WindowSpec m_WindowSpec;
     VkFormat m_ColorFormat;
     VkColorSpaceKHR m_ColorSpace;
-
-    std::vector<VkImage> m_Images;
-    std::vector<VkImageView> m_ImageViews;
-    std::vector<VkFramebuffer> m_Framebuffers;
+    uint32_t m_CurrentImage;
 };
 
 }

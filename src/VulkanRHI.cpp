@@ -24,9 +24,8 @@ void VulkanRHI::Init(SurfaceCreateFunc&& surfaceCreateFunc, GetWindowSpecFunc&& 
     m_Device = CreateRef<VulkanDevice>(m_Instance->GetHandle());
     m_Device->SetupPresentQueue(m_Window->GetSurfaceHandle());
     m_Swapchain = CreateRef<VulkanSwapchain>(m_Device.get(), m_Window.get());
-    m_Swapchain->Create(nullptr);
+    m_Swapchain->Create();
     m_Renderer = CreateRef<VulkanRenderer>(m_Device.get(), m_Swapchain.get());
-
 }
 
 void VulkanRHI::Shutdown()

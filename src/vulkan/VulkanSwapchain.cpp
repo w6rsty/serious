@@ -1,4 +1,5 @@
 #include "serious/vulkan/VulkanSwapchain.hpp"
+#include "serious/VulkanUtils.hpp"
 #include "serious/vulkan/VulkanDevice.hpp"
 #include "serious/vulkan/VulkanPass.hpp"
 #include "serious/vulkan/VulkanWindow.hpp"
@@ -12,13 +13,10 @@ VulkanSwapchain::VulkanSwapchain(VulkanDevice* device, VulkanWindow* window)
     : m_Swapchain(VK_NULL_HANDLE)
     , m_Device(device)
     , m_Window(window)
-    , m_CurrentImageIndex(0)
     , m_WindowSpec({})
     , m_ColorFormat(VK_FORMAT_UNDEFINED)
     , m_ColorSpace(VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
-    , m_Images({})
-    , m_ImageViews({})
-    , m_Framebuffers({})
+    , m_CurrentImage(UINT32_MAX)
 {
 }
 
@@ -28,17 +26,11 @@ VulkanSwapchain::~VulkanSwapchain()
 
 void VulkanSwapchain::Destroy()
 {
-    VK_CHECK_RESULT(vkQueueWaitIdle(m_Device->GetGraphicsQueue()->GetHandle()));
-    VK_CHECK_RESULT(vkQueueWaitIdle(m_Device->GetPresentQueue()->GetHandle()));
-
-    VkDevice device = m_Device->GetHandle();
-    for (VkImageView imageView : m_ImageViews) {
-        vkDestroyImageView(device, imageView, nullptr);
-    }
-    vkDestroySwapchainKHR(device, m_Swapchain, nullptr);
+    m_Device->GetGraphicsQueue()->WaitIdle();
+    vkDestroySwapchainKHR(m_Device->GetHandle(), m_Swapchain, nullptr);
 }
 
-void VulkanSwapchain::Create(VulkanSwapchainRecreateInfo* recreateInfo)
+void VulkanSwapchain::Create()
 {
     m_WindowSpec = m_Window->GetWindowSpec();
     VkSurfaceKHR surface = m_Window->GetSurfaceHandle();
@@ -47,25 +39,18 @@ void VulkanSwapchain::Create(VulkanSwapchainRecreateInfo* recreateInfo)
 
     VkSurfaceCapabilitiesKHR surfaceCaps;
     VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu, surface, &surfaceCaps));
+    if (surfaceCaps.currentExtent.width == 0 || surfaceCaps.currentExtent.height == 0) {
+        return; /// Cancel creation
+    }
     /// See https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkSurfaceCapabilitiesKHR.html
     /// Special value (0xFFFFFFFF, 0xFFFFFFFF) means the extent size is determined by targeting surface
     uint32_t sizeX = (surfaceCaps.currentExtent.width == 0xFFFFFFFF) ? m_WindowSpec.width : surfaceCaps.currentExtent.width;
     uint32_t sizeY = (surfaceCaps.currentExtent.height == 0xFFFFFFFF) ? m_WindowSpec.height : surfaceCaps.currentExtent.height;
-    if (surfaceCaps.currentExtent.width == 0 || surfaceCaps.currentExtent.height == 0) {
-        return; /// Cancel creation
-    }
 
-    uint32_t desiredImageCount = surfaceCaps.minImageCount + 1;
-    uint32_t supportedMaxImageCount = surfaceCaps.maxImageCount;
-    if ((supportedMaxImageCount > 0) && (desiredImageCount > supportedMaxImageCount)) {
-        desiredImageCount = supportedMaxImageCount;
-    }
-
-    VkSurfaceTransformFlagBitsKHR preTransform;
-    if (surfaceCaps.currentTransform & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
-        preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-    } else {
-        preTransform = surfaceCaps.currentTransform;
+    // Do triple-buffering when possible
+    uint32_t desiredImageCount = std::max(surfaceCaps.minImageCount, 3u);
+    if (desiredImageCount > surfaceCaps.maxImageCount) {
+        desiredImageCount = std::min(desiredImageCount, surfaceCaps.maxImageCount);
     }
 
     VkCompositeAlphaFlagBitsKHR compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
@@ -124,91 +109,19 @@ void VulkanSwapchain::Create(VulkanSwapchainRecreateInfo* recreateInfo)
     swapchainInfo.imageExtent.width = sizeX;
     swapchainInfo.imageExtent.height = sizeY;
     swapchainInfo.minImageCount = desiredImageCount;
-    swapchainInfo.preTransform = preTransform;
+    swapchainInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
     swapchainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     swapchainInfo.imageArrayLayers = 1;
     swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     swapchainInfo.compositeAlpha = compositeAlpha;
     swapchainInfo.clipped = VK_TRUE;
     swapchainInfo.oldSwapchain = VK_NULL_HANDLE;
-    if (recreateInfo) {
-        swapchainInfo.oldSwapchain = recreateInfo->oldSwapchain;
-    }
+
     VK_CHECK_RESULT(vkCreateSwapchainKHR(m_Device->GetHandle(), &swapchainInfo, nullptr, &m_Swapchain));
     Info("create swapchain with {} {} {} num images {} {}x{}", VulkanPresentModeString(swapchainPresentMode), VulkanFormatString(m_ColorFormat), VulkanColorSpaceString(m_ColorSpace), desiredImageCount, sizeX, sizeY);
-
-    if (recreateInfo) {
-        vkQueueWaitIdle(m_Device->GetGraphicsQueue()->GetHandle());
-        vkQueueWaitIdle(m_Device->GetPresentQueue()->GetHandle());
-        vkDestroySwapchainKHR(m_Device->GetHandle(), recreateInfo->oldSwapchain, nullptr);
-
-        for (VkImageView imageView : m_ImageViews) {
-            vkDestroyImageView(m_Device->GetHandle(), imageView, nullptr);
-        }
-        m_ImageViews.clear();
-    }
-
-    /// Get images
-    uint32_t numSwapchainImages = 0;;
-    VK_CHECK_RESULT(vkGetSwapchainImagesKHR(m_Device->GetHandle(), m_Swapchain, &numSwapchainImages, nullptr));
-    m_Images.resize(numSwapchainImages);
-    VK_CHECK_RESULT(vkGetSwapchainImagesKHR(m_Device->GetHandle(), m_Swapchain, &numSwapchainImages, m_Images.data()));
-
-    /// Create image views
-    VkImageViewCreateInfo imageViewInfo = {};
-    imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    imageViewInfo.format = m_ColorFormat;
-    imageViewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    imageViewInfo.subresourceRange.baseMipLevel = 0;
-    imageViewInfo.subresourceRange.levelCount = 1;
-    imageViewInfo.subresourceRange.baseArrayLayer = 0;
-    imageViewInfo.subresourceRange.layerCount = 1;
-
-    m_ImageViews.resize(m_Images.size());
-    for (size_t i = 0; i < m_Images.size(); i++) {
-        imageViewInfo.image = m_Images[i];
-        VK_CHECK_RESULT(vkCreateImageView(m_Device->GetHandle(), &imageViewInfo, nullptr, &m_ImageViews[i]));
-    }
 }
 
-void VulkanSwapchain::OnResize()
-{
-    VulkanSwapchainRecreateInfo recreateInfo;
-    recreateInfo.oldSwapchain = m_Swapchain;
-    Create(&recreateInfo);
-}
 
-void VulkanSwapchain::CreateFramebuffers(VulkanRenderPass& pass)
-{
-    m_Framebuffers.resize(m_Images.size());
-    
-    VkDevice device = m_Device->GetHandle();
-
-    VkFramebufferCreateInfo framebufferInfo = {};
-    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    framebufferInfo.renderPass = pass.GetHandle();
-    framebufferInfo.attachmentCount = 1;
-    framebufferInfo.width = m_WindowSpec.width;
-    framebufferInfo.height = m_WindowSpec.height;
-    framebufferInfo.layers = 1;
-    for (size_t i = 0; i < m_Framebuffers.size(); ++i) {
-        framebufferInfo.pAttachments = &m_ImageViews[i];
-        VK_CHECK_RESULT(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &m_Framebuffers[i]));
-    }
-}
-
-void VulkanSwapchain::DestroyFrameBuffers()
-{
-    VkDevice device = m_Device->GetHandle();
-    for (VkFramebuffer& framebuffer : m_Framebuffers) {
-        vkDestroyFramebuffer(device, framebuffer, nullptr);
-    }
-}
 
 void VulkanSwapchain::Present(VulkanSemaphore* outSemaphore)
 {
@@ -218,27 +131,19 @@ void VulkanSwapchain::Present(VulkanSemaphore* outSemaphore)
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &m_Swapchain;
-    presentInfo.pImageIndices = &m_CurrentImageIndex;
+    presentInfo.pImageIndices = &m_CurrentImage;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = &samephore;
     VK_CHECK_RESULT(vkQueuePresentKHR(m_Device->GetPresentQueue()->GetHandle(), &presentInfo));
 }
 
-uint32_t VulkanSwapchain::AcquireNextImage(VulkanSemaphore* outSemaphore)
+void VulkanSwapchain::AcquireImage(VulkanSemaphore* outSemaphore, uint32_t& imageIndex)
 {
     ZoneScopedN("Acquire Image");
-
-    VkDevice device = m_Device->GetHandle();
-    /// Signal to m_PresentComplete 
-    VkResult result = vkAcquireNextImageKHR(device, m_Swapchain, UINT64_MAX, outSemaphore->GetHandle(), VK_NULL_HANDLE, &m_CurrentImageIndex);
-    if (result != VK_SUCCESS) {
-        if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
-            OnResize();
-            /// Recursive may goes wrong
-            VK_CHECK_RESULT(vkAcquireNextImageKHR(device, m_Swapchain, UINT64_MAX, outSemaphore->GetHandle(), VK_NULL_HANDLE, &m_CurrentImageIndex));
-        }
-    }
-    return m_CurrentImageIndex;
+    uint32_t index = UINT32_MAX;
+    VK_CHECK_RESULT(vkAcquireNextImageKHR(m_Device->GetHandle(), m_Swapchain, UINT64_MAX, outSemaphore->GetHandle(), VK_NULL_HANDLE, &index));
+    imageIndex = index;
+    m_CurrentImage = index;
 }
 
 }

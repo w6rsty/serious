@@ -22,7 +22,7 @@ file(GLOB_RECURSE SRC src/*.cpp)
 
 add_library(serious STATIC ${SRC})
 target_include_directories(serious PUBLIC .)
-target_link_libraries(serious PUBLIC Vulkan::Vulkan fmt)
+target_link_libraries(serious PUBLIC Vulkan::Vulkan fmt glm)
 target_compile_features(serious PUBLIC cxx_std_17)
 target_compile_definitions(serious PUBLIC
     "$<$<CONFIG:DEBUG>:ENABLE_VALIDATION>"

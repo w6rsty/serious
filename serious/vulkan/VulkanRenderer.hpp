@@ -1,8 +1,10 @@
 #pragma once
 
-#include "serious/vulkan/VulkanSyncs.hpp"
-#include "serious/vulkan/VulkanPipeline.hpp"
 #include "serious/VulkanUtils.hpp"
+#include "serious/vulkan/VulkanSyncs.hpp"
+#include "serious/vulkan/VulkanBuffer.hpp"
+#include "serious/vulkan/VulkanCommand.hpp"
+#include "serious/vulkan/VulkanPipeline.hpp"
 
 namespace serious
 {
@@ -38,7 +40,8 @@ private:
     std::vector<VulkanSemaphore> m_RenderFinishedSems;
 
     Ref<VulkanCommandPool> m_CmdPool;
-    std::vector<Ref<VulkanCommandBuffer>> m_CmdBufs;
+    std::vector<VulkanCommandBuffer> m_CmdBufs;
+    Ref<VulkanCommandPool> m_TransferCmdPool;
 
     VkClearValue m_ClearValue;
     Ref<VulkanRenderPass> m_RenderPass;
@@ -49,6 +52,9 @@ private:
     std::vector<VkImage> m_Images;
     std::vector<VkImageView> m_ImageViews;
     std::vector<VkFramebuffer> m_Framebuffers;
+    
+    VulkanBuffer m_VertexBuffer;
+    VulkanBuffer m_IndexBuffer;
 };
 
 }

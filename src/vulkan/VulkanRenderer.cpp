@@ -3,11 +3,23 @@
 #include "serious/vulkan/VulkanSwapchain.hpp"
 #include "serious/vulkan/VulkanPass.hpp"
 #include "serious/vulkan/VulkanCommand.hpp"
+#include "serious/vulkan/Vertex.hpp"
 
 #include <Tracy.hpp>
 
 namespace serious
 {
+
+const std::vector<Vertex> vertices = {
+    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+    {{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+    {{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}},
+    {{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}},
+};
+
+const std::vector<uint16_t> indices = {
+    0, 1, 2, 2, 3, 0
+};
 
 VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
     : m_Device(device)
@@ -19,6 +31,7 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
     , m_RenderFinishedSems({})
     , m_CmdPool(nullptr)
     , m_CmdBufs({})
+    , m_TransferCmdPool(nullptr)
     , m_ClearValue({ {{0.1f, 0.1f, 0.1f, 1.0f}} })
     , m_RenderPass(nullptr)
     , m_ShaderModules({})
@@ -27,6 +40,8 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
     , m_Images({})
     , m_ImageViews({})
     , m_Framebuffers({})
+    , m_VertexBuffer(m_Device)
+    , m_IndexBuffer(m_Device)
 {
     ZoneScopedN("VulkanRenderer Init");
 
@@ -36,10 +51,10 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
     m_MaxFrame = m_Framebuffers.size();
 
     m_CmdPool = CreateRef<VulkanCommandPool>(m_Device, m_Device->GetGraphicsQueue().get());
+    m_TransferCmdPool = CreateRef<VulkanCommandPool>(m_Device, m_Device->GetTransferQueue().get());
 
     for (size_t i = 0; i < m_MaxFrame; ++i) {
-        m_CmdBufs.push_back(CreateRef<VulkanCommandBuffer>(device, m_CmdPool.get()));
-        m_CmdBufs[i]->Allocate();
+        m_CmdBufs.push_back(m_CmdPool->Allocate());
 
         m_Fences.emplace_back(device, VK_FENCE_CREATE_SIGNALED_BIT);
         m_ImageAvailableSems.emplace_back(device);
@@ -51,6 +66,51 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
 
     m_PipelineLayout = CreateRef<VulkanPipelineLayout>(device);
     m_Pipeline = CreateRef<VulkanPipeline>(device, m_ShaderModules, *m_RenderPass, *m_Swapchain);
+
+    {
+        VulkanBuffer stagingBuffer(m_Device);
+
+        stagingBuffer.Create(
+            sizeof(Vertex) * vertices.size(),
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,   
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        );
+        stagingBuffer.Map(vertices.data(), sizeof(Vertex) * vertices.size());
+
+        m_VertexBuffer.Create(
+            sizeof(Vertex) * vertices.size(),
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+        );
+
+        VulkanCommandBuffer transferBuf = m_TransferCmdPool->Allocate();
+        m_VertexBuffer.Copy(stagingBuffer, sizeof(Vertex) * vertices.size(), transferBuf, *m_Device->GetTransferQueue());
+        m_TransferCmdPool->Free(transferBuf);
+        
+        stagingBuffer.Destroy();
+    }
+    {
+        VulkanBuffer stagingBuffer(m_Device);
+
+        stagingBuffer.Create(
+            sizeof(uint16_t) * indices.size(),
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,   
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        );
+        stagingBuffer.Map(indices.data(), sizeof(uint16_t) * indices.size());
+
+        m_IndexBuffer.Create(
+            sizeof(uint16_t) * indices.size(),
+            VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+        );
+
+        VulkanCommandBuffer transferBuf = m_TransferCmdPool->Allocate();
+        m_IndexBuffer.Copy(stagingBuffer, sizeof(uint16_t) * indices.size(), transferBuf, *m_Device->GetTransferQueue());
+        m_TransferCmdPool->Free(transferBuf);
+
+        stagingBuffer.Destroy(); 
+    }
 }
 
 VulkanRenderer::~VulkanRenderer()
@@ -61,7 +121,11 @@ void VulkanRenderer::Destroy()
 {
     m_Device->GetGraphicsQueue()->WaitIdle();
     m_Device->GetPresentQueue()->WaitIdle();
+    m_Device->GetTransferQueue()->WaitIdle();
 
+    m_VertexBuffer.Destroy();
+    m_IndexBuffer.Destroy();
+    
     m_Pipeline->Destroy();
     m_PipelineLayout->Destroy();
     for (VulkanShaderModule& shaderModule : m_ShaderModules) {
@@ -75,22 +139,23 @@ void VulkanRenderer::Destroy()
         m_Fences[i].Destroy();
         m_ImageAvailableSems[i].Destroy();
         m_RenderFinishedSems[i].Destroy();
-        m_CmdBufs[i]->Free();
+        m_CmdPool->Free(m_CmdBufs[i]);
     }
-
+    
     m_CmdPool->Destroy();
+    m_TransferCmdPool->Destroy();
 }
 
 void VulkanRenderer::OnUpdate()
 {
     m_Fences[m_CurrentFrame].WaitAndReset();
-    Ref<VulkanCommandBuffer> cmdBuf = m_CmdBufs[m_CurrentFrame];
-    cmdBuf->Reset();
+    VulkanCommandBuffer& cmdBuf = m_CmdBufs[m_CurrentFrame];
+    cmdBuf.Reset();
 
     uint32_t index;
     m_Swapchain->AcquireImage(&m_ImageAvailableSems[m_CurrentFrame], index);
 
-    VkCommandBuffer cmd = cmdBuf->GetHandle();
+    VkCommandBuffer cmd = cmdBuf.GetHandle();
 
     VkRenderPassBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -101,12 +166,15 @@ void VulkanRenderer::OnUpdate()
     beginInfo.clearValueCount = 1;
     beginInfo.pClearValues = &m_ClearValue;
 
-    cmdBuf->Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    cmdBuf.Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
     m_RenderPass->CmdBegin(cmd, beginInfo);
-    cmdBuf->BindGraphicsPipeline(*m_Pipeline);
-    cmdBuf->Draw(3, 1, 0, 0);
+    cmdBuf.BindGraphicsPipeline(*m_Pipeline);
+    cmdBuf.BindVertexBuffer(m_VertexBuffer, 0);
+    cmdBuf.BindIndexBuffer(m_IndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+    // cmdBuf.Draw(vertices.size(), vertices.size() / 3, 0, 0);
+    cmdBuf.DrawIndexed(indices.size(), indices.size() / 3, 0, 0, 0);
     m_RenderPass->CmdEnd(cmd);
-    cmdBuf->End();
+    cmdBuf.End();
 
     VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     // Graphics queue submit
@@ -161,7 +229,6 @@ void VulkanRenderer::CreateFramebuffers()
         VK_CHECK_RESULT(vkCreateImageView(m_Device->GetHandle(), &imageViewInfo, nullptr, &m_ImageViews[i]));
     }
 
-    
     VkDevice device = m_Device->GetHandle();
 
     VkExtent2D windowSpec = m_Swapchain->GetExtent();
@@ -191,6 +258,5 @@ void VulkanRenderer::DestroyFrameBuffers()
     }
     m_ImageViews.clear();
 }
-
 
 }

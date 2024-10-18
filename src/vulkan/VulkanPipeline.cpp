@@ -2,6 +2,7 @@
 #include "serious/vulkan/VulkanDevice.hpp"
 #include "serious/vulkan/VulkanPass.hpp"
 #include "serious/vulkan/VulkanSwapchain.hpp"
+#include "serious/vulkan/Vertex.hpp"
 #include "serious/VulkanUtils.hpp"
 
 namespace serious
@@ -57,8 +58,15 @@ VulkanPipeline::VulkanPipeline(
     , m_Layout(device)
     , m_Device(device)
 {
+    auto vtxBindingDescriptions = Vertex::GetBindingDescription();
+    auto vtxAttributeDescriptions = Vertex::GetAttributeDescriptions();
+
     VkPipelineVertexInputStateCreateInfo vtxInputState = {};
     vtxInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vtxInputState.vertexBindingDescriptionCount = 1;
+    vtxInputState.pVertexBindingDescriptions = &vtxBindingDescriptions;
+    vtxInputState.vertexAttributeDescriptionCount = static_cast<uint32_t>(vtxAttributeDescriptions.size());
+    vtxInputState.pVertexAttributeDescriptions = vtxAttributeDescriptions.data(); 
 
     VkPipelineInputAssemblyStateCreateInfo inputAsmState = {};
     inputAsmState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;

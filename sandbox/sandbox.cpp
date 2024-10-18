@@ -1,16 +1,17 @@
 #include "serious/VulkanRHI.hpp"
-#include <SDL3/SDL_video.h>
 
 #define SDL_MAIN_USE_CALLBACKS 1
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <SDL3/SDL_vulkan.h>
 
+#include <glm/glm.hpp>
+
 struct AppState
 {
     SDL_Window* window;
     serious::RHI* rhi;
-    serious::WindowSpec spec {800, 600, false};
+    serious::WindowSpec spec {1920, 1080, false};
 };
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])

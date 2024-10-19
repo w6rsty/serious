@@ -21,7 +21,10 @@ public:
         VkMemoryPropertyFlags properties
     );
     void Destroy();
+    void MapOnce(const void* data, const VkDeviceSize& size);
     void Map(const void* data, const VkDeviceSize& size);
+    void* MapTo(const VkDeviceSize& size);
+    void Unmap();
     void Copy(VulkanBuffer& srcBuffer, const VkDeviceSize& size, VulkanCommandBuffer& cmdBuf, VulkanQueue& queue);
 
     inline VkBuffer GetHandle() const { return m_Buffer; } 

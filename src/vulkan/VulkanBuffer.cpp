@@ -1,7 +1,7 @@
 #include "serious/vulkan/VulkanBuffer.hpp"
-#include "serious/VulkanUtils.hpp"
 #include "serious/vulkan/VulkanDevice.hpp"
 #include "serious/vulkan/VulkanCommand.hpp"
+#include "serious/VulkanUtils.hpp"
 
 namespace serious
 {
@@ -19,8 +19,7 @@ VulkanBuffer::~VulkanBuffer()
 void VulkanBuffer::Create(
     VkDeviceSize size,
     VkBufferUsageFlags usage,
-    VkMemoryPropertyFlags properties
-)
+    VkMemoryPropertyFlags properties)
 {
     VkBufferCreateInfo bufferInfo {};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -48,13 +47,31 @@ void VulkanBuffer::Destroy()
     vkFreeMemory(m_Device->GetHandle(), m_Memory, nullptr);
 }
 
-void VulkanBuffer::Map(const void* data, const VkDeviceSize& size)
+void VulkanBuffer::MapOnce(const void* data, const VkDeviceSize& size)
 {
     void* mappedData;
     vkMapMemory(m_Device->GetHandle(), m_Memory, 0, size, 0, &mappedData);
     memcpy(mappedData, data, (size_t) size);
     vkUnmapMemory(m_Device->GetHandle(), m_Memory);
-    Info("Buffer memory allocated: {} bytes", size);
+}
+
+void VulkanBuffer::Map(const void* data, const VkDeviceSize& size)
+{
+    void* mappedData;
+    vkMapMemory(m_Device->GetHandle(), m_Memory, 0, size, 0, &mappedData);
+    memcpy(mappedData, data, (size_t) size);
+}
+
+void* VulkanBuffer::MapTo(const VkDeviceSize& size)
+{
+    void* data;
+    vkMapMemory(m_Device->GetHandle(), m_Memory, 0, size, 0, &data);
+    return data;
+}
+
+void VulkanBuffer::Unmap()
+{
+    vkUnmapMemory(m_Device->GetHandle(), m_Memory);
 }
 
 void VulkanBuffer::Copy(VulkanBuffer& srcBuffer, const VkDeviceSize& size, VulkanCommandBuffer& cmdBuf, VulkanQueue& queue)

@@ -7,17 +7,19 @@
 
 #include <Tracy.hpp>
 
+#include <chrono>
+
 namespace serious
 {
 
-const std::vector<Vertex> vertices = {
+static const std::vector<Vertex> vertices = {
     {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
     {{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
     {{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}},
     {{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}},
 };
 
-const std::vector<uint16_t> indices = {
+static const std::vector<uint16_t> indices = {
     0, 1, 2, 2, 3, 0
 };
 
@@ -35,18 +37,20 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
     , m_ClearValue({ {{0.1f, 0.1f, 0.1f, 1.0f}} })
     , m_RenderPass(nullptr)
     , m_ShaderModules({})
-    , m_PipelineLayout(nullptr)
     , m_Pipeline(nullptr)
     , m_Images({})
     , m_ImageViews({})
     , m_Framebuffers({})
     , m_VertexBuffer(m_Device)
     , m_IndexBuffer(m_Device)
+    , m_UniformBuffers({})
+    , m_UniformBufferMapped({})
+    , m_DescriptorSets({})
 {
     ZoneScopedN("VulkanRenderer Init");
 
     m_RenderPass = CreateRef<VulkanRenderPass>(device, *m_Swapchain);
-    CreateFramebuffers();
+    CreateFrameDatas();
 
     m_MaxFrame = m_Framebuffers.size();
 
@@ -64,9 +68,9 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
     m_ShaderModules.emplace_back(device, "shaders/vert.spv", VK_SHADER_STAGE_VERTEX_BIT);    
     m_ShaderModules.emplace_back(device, "shaders/frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);    
 
-    m_PipelineLayout = CreateRef<VulkanPipelineLayout>(device);
     m_Pipeline = CreateRef<VulkanPipeline>(device, m_ShaderModules, *m_RenderPass, *m_Swapchain);
 
+    // Vertex buffer
     {
         VulkanBuffer stagingBuffer(m_Device);
 
@@ -75,7 +79,7 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT,   
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
         );
-        stagingBuffer.Map(vertices.data(), sizeof(Vertex) * vertices.size());
+        stagingBuffer.MapOnce(vertices.data(), sizeof(Vertex) * vertices.size());
 
         m_VertexBuffer.Create(
             sizeof(Vertex) * vertices.size(),
@@ -89,6 +93,7 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
         
         stagingBuffer.Destroy();
     }
+    // Index Buffer
     {
         VulkanBuffer stagingBuffer(m_Device);
 
@@ -97,7 +102,7 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT,   
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
         );
-        stagingBuffer.Map(indices.data(), sizeof(uint16_t) * indices.size());
+        stagingBuffer.MapOnce(indices.data(), sizeof(uint16_t) * indices.size());
 
         m_IndexBuffer.Create(
             sizeof(uint16_t) * indices.size(),
@@ -111,6 +116,44 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
 
         stagingBuffer.Destroy(); 
     }
+    // Uniform buffer(Init)
+    {
+        VkDeviceSize uboSize = sizeof(UniformBufferObject);
+        m_UniformBuffers.resize(m_MaxFrame, VulkanBuffer(m_Device));
+        m_UniformBufferMapped.resize(m_MaxFrame, nullptr);
+        
+        for (uint32_t i = 0; i < m_MaxFrame; ++i) {
+            VulkanBuffer& uniformBuffer = m_UniformBuffers[i];
+            uniformBuffer.Create(
+                uboSize,
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+            );
+            m_UniformBufferMapped[i] = uniformBuffer.MapTo(uboSize);
+        }
+    }
+    {
+        m_DescriptorSets.resize(m_MaxFrame, VK_NULL_HANDLE);
+        m_Pipeline->AllocateDescriptorSets(m_DescriptorSets);
+
+        for (uint32_t i = 0; i < m_MaxFrame; ++i) {
+            VkDescriptorBufferInfo bufferInfo {};
+            bufferInfo.buffer = m_UniformBuffers[i].GetHandle();
+            bufferInfo.offset = 0;
+            bufferInfo.range = sizeof(UniformBufferObject);
+
+            VkWriteDescriptorSet descriptorWrite {};
+            descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrite.dstSet = m_DescriptorSets[i];
+            descriptorWrite.dstBinding = 0;
+            descriptorWrite.dstArrayElement = 0;
+            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrite.descriptorCount = 1;
+            descriptorWrite.pBufferInfo = &bufferInfo;
+
+            vkUpdateDescriptorSets(m_Device->GetHandle(), 1, &descriptorWrite, 0, nullptr);
+        }
+    }
 }
 
 VulkanRenderer::~VulkanRenderer()
@@ -119,20 +162,21 @@ VulkanRenderer::~VulkanRenderer()
 
 void VulkanRenderer::Destroy()
 {
-    m_Device->GetGraphicsQueue()->WaitIdle();
-    m_Device->GetPresentQueue()->WaitIdle();
-    m_Device->GetTransferQueue()->WaitIdle();
+    m_Pipeline->Destroy();
+    
+    for (VulkanBuffer& uniformBuffer : m_UniformBuffers) {
+        uniformBuffer.Unmap();
+        uniformBuffer.Destroy();
+    }
 
     m_VertexBuffer.Destroy();
     m_IndexBuffer.Destroy();
     
-    m_Pipeline->Destroy();
-    m_PipelineLayout->Destroy();
     for (VulkanShaderModule& shaderModule : m_ShaderModules) {
         shaderModule.Destroy();
     }
 
-    DestroyFrameBuffers();
+    DestroyFrameDatas();
     m_RenderPass->Destroy();
 
     for (size_t i = 0; i < m_MaxFrame; ++i) {
@@ -148,6 +192,8 @@ void VulkanRenderer::Destroy()
 
 void VulkanRenderer::OnUpdate()
 {
+    UpdateUniforms();
+
     m_Fences[m_CurrentFrame].WaitAndReset();
     VulkanCommandBuffer& cmdBuf = m_CmdBufs[m_CurrentFrame];
     cmdBuf.Reset();
@@ -171,7 +217,7 @@ void VulkanRenderer::OnUpdate()
     cmdBuf.BindGraphicsPipeline(*m_Pipeline);
     cmdBuf.BindVertexBuffer(m_VertexBuffer, 0);
     cmdBuf.BindIndexBuffer(m_IndexBuffer, 0, VK_INDEX_TYPE_UINT16);
-    // cmdBuf.Draw(vertices.size(), vertices.size() / 3, 0, 0);
+    cmdBuf.BindDescriptorSet(m_Pipeline->GetPipelineLayout(), m_DescriptorSets[m_CurrentFrame]);
     cmdBuf.DrawIndexed(indices.size(), indices.size() / 3, 0, 0, 0);
     m_RenderPass->CmdEnd(cmd);
     cmdBuf.End();
@@ -198,7 +244,22 @@ void VulkanRenderer::OnUpdate()
     FrameMark;
 }
 
-void VulkanRenderer::CreateFramebuffers()
+void VulkanRenderer::UpdateUniforms()
+{
+    static auto startTime = std::chrono::high_resolution_clock::now();
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+    UniformBufferObject ubo = {};
+    ubo.model = glm::rotate(glm::mat4(1.0f), time, glm::vec3(0.0f, 0.0f, 1.0f));
+    ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f));
+    ubo.proj = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 10.0f);
+    ubo.proj[1][1] *= -1;
+    
+    memcpy(m_UniformBufferMapped[m_CurrentFrame], &ubo, sizeof(UniformBufferObject));
+}
+
+void VulkanRenderer::CreateFrameDatas()
 {
     /// Get images
     uint32_t numSwapchainImages = 0;
@@ -245,7 +306,7 @@ void VulkanRenderer::CreateFramebuffers()
     }
 }
 
-void VulkanRenderer::DestroyFrameBuffers()
+void VulkanRenderer::DestroyFrameDatas()
 {
     VkDevice device = m_Device->GetHandle();
     for (VkFramebuffer& framebuffer : m_Framebuffers) {
@@ -254,7 +315,7 @@ void VulkanRenderer::DestroyFrameBuffers()
     m_Framebuffers.clear();
 
     for (VkImageView imageView : m_ImageViews) {
-        vkDestroyImageView(m_Device->GetHandle(), imageView, nullptr);
+        vkDestroyImageView(device, imageView, nullptr);
     }
     m_ImageViews.clear();
 }

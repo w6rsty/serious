@@ -6,6 +6,10 @@
 #include "serious/vulkan/VulkanCommand.hpp"
 #include "serious/vulkan/VulkanPipeline.hpp"
 
+#define GLM_FORCE_RADIANS
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 namespace serious
 {
 
@@ -18,6 +22,12 @@ class VulkanShaderModule;
 class VulkanCommandBuffer;
 class VulkanPipelineLayout;
 
+struct UniformBufferObject {
+    glm::mat4 model;
+    glm::mat4 view;
+    glm::mat4 proj;
+};
+
 class VulkanRenderer final
 {
 public:
@@ -26,9 +36,10 @@ public:
     void Destroy();
 
     void OnUpdate();
-
-    void CreateFramebuffers();
-    void DestroyFrameBuffers();
+private:
+    void UpdateUniforms();
+    void CreateFrameDatas();
+    void DestroyFrameDatas();
 private:
     VulkanDevice* m_Device;
     VulkanSwapchain* m_Swapchain;
@@ -46,7 +57,6 @@ private:
     VkClearValue m_ClearValue;
     Ref<VulkanRenderPass> m_RenderPass;
     std::vector<VulkanShaderModule> m_ShaderModules;
-    Ref<VulkanPipelineLayout> m_PipelineLayout; 
     Ref<VulkanPipeline> m_Pipeline;
 
     std::vector<VkImage> m_Images;
@@ -55,6 +65,9 @@ private:
     
     VulkanBuffer m_VertexBuffer;
     VulkanBuffer m_IndexBuffer;
+    std::vector<VulkanBuffer> m_UniformBuffers;
+    std::vector<void*> m_UniformBufferMapped;
+    std::vector<VkDescriptorSet> m_DescriptorSets;
 };
 
 }

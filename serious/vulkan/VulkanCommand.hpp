@@ -23,9 +23,10 @@ public:
     void BindGraphicsPipeline(const VulkanPipeline& pipeline);
     void BindVertexBuffer(const VulkanBuffer& buffer, uint32_t offset);
     void BindIndexBuffer(const VulkanBuffer& buffer, uint32_t offset, VkIndexType type);
+    void BindDescriptorSet(VkPipelineLayout layout, const VkDescriptorSet& descriptorSet);
+    void CopyBuffer(const VulkanBuffer& srcBuf, const VulkanBuffer& dstBuf, const VkDeviceSize& size);
     void Draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
     void DrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
-    void CopyBuffer(const VulkanBuffer& srcBuf, const VulkanBuffer& dstBuf, const VkDeviceSize& size);
 
     inline VkCommandBuffer GetHandle() const { return m_CmdBuf; }
 private:

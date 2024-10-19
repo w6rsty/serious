@@ -108,4 +108,9 @@ void VulkanCommandBuffer::CopyBuffer(const VulkanBuffer& srcBuf, const VulkanBuf
     vkCmdCopyBuffer(m_CmdBuf, srcBuf.GetHandle(), dstBuf.GetHandle(), 1, &copyRegion);
 }
 
+void VulkanCommandBuffer::BindDescriptorSet(VkPipelineLayout layout, const VkDescriptorSet& descriptorSet)
+{
+    vkCmdBindDescriptorSets(m_CmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &descriptorSet, 0, nullptr);
+}
+
 }

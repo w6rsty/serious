@@ -30,34 +30,20 @@ void VulkanShaderModule::Destroy()
     vkDestroyShaderModule(m_Device->GetHandle(), m_ShaderModule, nullptr);
 }
 
-
-VulkanPipelineLayout::VulkanPipelineLayout(VulkanDevice* device)
-    : m_PipelineLayout(VK_NULL_HANDLE)
-    , m_Device(device)
-{
-    VkPipelineLayoutCreateInfo layoutInfo = {};
-    layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    VK_CHECK_RESULT(vkCreatePipelineLayout(m_Device->GetHandle(), &layoutInfo, nullptr, &m_PipelineLayout));
-}
-
-VulkanPipelineLayout::~VulkanPipelineLayout()
-{
-}
-
-void VulkanPipelineLayout::Destroy()
-{
-    vkDestroyPipelineLayout(m_Device->GetHandle(), m_PipelineLayout, nullptr);
-}
-
 VulkanPipeline::VulkanPipeline(
         VulkanDevice* device,
         const std::vector<VulkanShaderModule>& shaderModules,
         VulkanRenderPass& renderPass,
         VulkanSwapchain& swapchain)
     : m_Pipeline(VK_NULL_HANDLE)
-    , m_Layout(device)
     , m_Device(device)
+    , m_DescriptorSetLayout(VK_NULL_HANDLE)
+    , m_PipelineLayout(VK_NULL_HANDLE)
 {
+    // Descriptor pool
+    CreateDescriptorPool();
+
+    // Pipeline Creation
     auto vtxBindingDescriptions = Vertex::GetBindingDescription();
     auto vtxAttributeDescriptions = Vertex::GetAttributeDescriptions();
 
@@ -99,7 +85,7 @@ VulkanPipeline::VulkanPipeline(
     rastState.lineWidth = 1.0f;
     rastState.polygonMode = VK_POLYGON_MODE_FILL;
     rastState.cullMode = VK_CULL_MODE_BACK_BIT;
-    rastState.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rastState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
     VkPipelineMultisampleStateCreateInfo multiSampleState = {};
     multiSampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -123,6 +109,24 @@ VulkanPipeline::VulkanPipeline(
         shaderStageInfo.pName = "main";
     }
 
+    VkDescriptorSetLayoutBinding uboLayoutBinding {};
+    uboLayoutBinding.binding = 0;
+    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uboLayoutBinding.descriptorCount = 1;
+    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo {};
+    descriptorSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptorSetLayoutInfo.bindingCount = 1;
+    descriptorSetLayoutInfo.pBindings = &uboLayoutBinding;
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(m_Device->GetHandle(), &descriptorSetLayoutInfo, nullptr, &m_DescriptorSetLayout));
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &m_DescriptorSetLayout;
+    VK_CHECK_RESULT(vkCreatePipelineLayout(m_Device->GetHandle(), &pipelineLayoutInfo, nullptr, &m_PipelineLayout));
+
     VkGraphicsPipelineCreateInfo pipelineInfo = {};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineInfo.pVertexInputState = &vtxInputState;
@@ -133,7 +137,7 @@ VulkanPipeline::VulkanPipeline(
     pipelineInfo.pColorBlendState = &colorBlendState;
     pipelineInfo.stageCount = shaderStageInfos.size();
     pipelineInfo.pStages = shaderStageInfos.data();
-    pipelineInfo.layout = m_Layout.GetHandle();
+    pipelineInfo.layout = m_PipelineLayout;
     pipelineInfo.renderPass = renderPass.GetHandle();
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(m_Device->GetHandle(), nullptr, 1, &pipelineInfo, nullptr, &m_Pipeline));
 }
@@ -144,8 +148,43 @@ VulkanPipeline::~VulkanPipeline()
 
 void VulkanPipeline::Destroy()
 {
-    m_Layout.Destroy();
-    vkDestroyPipeline(m_Device->GetHandle(), m_Pipeline, nullptr);
+    m_Device->GetGraphicsQueue()->WaitIdle();
+    m_Device->GetPresentQueue()->WaitIdle();
+    m_Device->GetTransferQueue()->WaitIdle();
+
+    VkDevice deviceHandle = m_Device->GetHandle();
+
+    vkDestroyDescriptorPool(deviceHandle, m_DescriptorPool, nullptr);
+    vkDestroyDescriptorSetLayout(deviceHandle, m_DescriptorSetLayout, nullptr);
+    vkDestroyPipelineLayout(deviceHandle, m_PipelineLayout, nullptr);
+    vkDestroyPipeline(deviceHandle, m_Pipeline, nullptr);
+}
+
+void VulkanPipeline::AllocateDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets)
+{
+    std::vector<VkDescriptorSetLayout> layouts(3, m_DescriptorSetLayout);
+
+    VkDescriptorSetAllocateInfo allocInfo {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = m_DescriptorPool;
+    allocInfo.descriptorSetCount = 3;
+    allocInfo.pSetLayouts = layouts.data();
+    VK_CHECK_RESULT(vkAllocateDescriptorSets(m_Device->GetHandle(), &allocInfo, descriptorSets.data()));
+}
+
+
+void VulkanPipeline::CreateDescriptorPool()
+{
+    VkDescriptorPoolSize poolSize {};
+    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSize.descriptorCount = 3;
+    
+    VkDescriptorPoolCreateInfo poolInfo {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = 3;
+    VK_CHECK_RESULT(vkCreateDescriptorPool(m_Device->GetHandle(), &poolInfo, nullptr, &m_DescriptorPool));
 }
     
 }

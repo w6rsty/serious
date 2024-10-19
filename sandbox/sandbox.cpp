@@ -11,7 +11,7 @@ struct AppState
 {
     SDL_Window* window;
     serious::RHI* rhi;
-    serious::WindowSpec spec {1920, 1080, false};
+    serious::WindowSpec spec {800, 600, false};
 };
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])

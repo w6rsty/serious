@@ -27,20 +27,6 @@ private:
     VkShaderStageFlagBits m_Stage;
 };
 
-class VulkanPipelineLayout final
-{
-public:
-    VulkanPipelineLayout(VulkanDevice* device);
-    ~VulkanPipelineLayout();
-    void Destroy();
-
-    inline VkPipelineLayout GetHandle() const { return m_PipelineLayout; }
-private:
-    VkPipelineLayout m_PipelineLayout;
-    VulkanDevice* m_Device;
-};
-
-
 class VulkanPipeline final
 {
 public:
@@ -51,13 +37,20 @@ public:
         VulkanSwapchain& swapchain);
     ~VulkanPipeline();
     void Destroy();
+    void AllocateDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets);
     
     inline VkPipeline GetHandle() const { return m_Pipeline; }
+    inline VkDescriptorSetLayout GetDescriptorSetLayout() const { return m_DescriptorSetLayout; }
+    inline VkPipelineLayout GetPipelineLayout() const { return m_PipelineLayout; }
+private:
+    void CreateDescriptorPool();
 private:
     VkPipeline m_Pipeline;
-    VulkanPipelineLayout m_Layout;
-
     VulkanDevice* m_Device;
+    VkDescriptorSetLayout m_DescriptorSetLayout;
+    VkPipelineLayout m_PipelineLayout;
+
+    VkDescriptorPool m_DescriptorPool;
 };
 
 }

@@ -35,19 +35,11 @@ fmt::print("\n")
 fmt::print(fmt::fg(fmt::color::red), __VA_ARGS__); \
 fmt::print("\n")
 
-#if defined(DEBUG)
-    #define Fatal(...) \
-    fmt::print(fmt::fg(fmt::color::red), __VA_ARGS__); \
-    fmt::print("\n"); \
-    __debugbreak(); \
-    std::terminate()
-#else
-    #define Fatal(...) \
-    fmt::print(fmt::fg(fmt::color::red), __VA_ARGS__); \
-    fmt::print(fmt::fg(fmt::color::red), " At {} {} {}\n", __FILE__, __LINE__, __FUNCTION__); \
-    fmt::print("\n"); \
-    std::terminate()
-#endif
+#define Fatal(...) \
+fmt::print(fmt::fg(fmt::color::red), __VA_ARGS__); \
+fmt::print(fmt::fg(fmt::color::red), " At {} {} {}\n", __FILE__, __LINE__, __FUNCTION__); \
+fmt::print("\n"); \
+std::terminate()
 
 #if defined(_DEBUG) || defined(ENABLE_VALIDATION)
     static constexpr bool s_Validation = true;

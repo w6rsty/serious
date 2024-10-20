@@ -5,6 +5,8 @@
 #include "serious/vulkan/Vertex.hpp"
 #include "serious/VulkanUtils.hpp"
 
+#include <array>
+
 namespace serious
 {
 
@@ -109,17 +111,7 @@ VulkanPipeline::VulkanPipeline(
         shaderStageInfo.pName = "main";
     }
 
-    VkDescriptorSetLayoutBinding uboLayoutBinding {};
-    uboLayoutBinding.binding = 0;
-    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uboLayoutBinding.descriptorCount = 1;
-    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo {};
-    descriptorSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    descriptorSetLayoutInfo.bindingCount = 1;
-    descriptorSetLayoutInfo.pBindings = &uboLayoutBinding;
-    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(m_Device->GetHandle(), &descriptorSetLayoutInfo, nullptr, &m_DescriptorSetLayout));
+    CreateDescriptorSetLayout();
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -172,17 +164,47 @@ void VulkanPipeline::AllocateDescriptorSets(std::vector<VkDescriptorSet>& descri
     VK_CHECK_RESULT(vkAllocateDescriptorSets(m_Device->GetHandle(), &allocInfo, descriptorSets.data()));
 }
 
+void VulkanPipeline::CreateDescriptorSetLayout()
+{
+    // MVP matrices
+    VkDescriptorSetLayoutBinding uboLayoutBinding {};
+    uboLayoutBinding.binding = 0;
+    uboLayoutBinding.descriptorCount = 1;
+    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    //  Texture sampler
+    VkDescriptorSetLayoutBinding samplerLayoutBinding {};
+    samplerLayoutBinding.binding = 1;
+    samplerLayoutBinding.descriptorCount = 1;
+    samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    samplerLayoutBinding.pImmutableSamplers = nullptr;
+    samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings = {
+        uboLayoutBinding,
+        samplerLayoutBinding
+    };
+
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo {};
+    descriptorSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptorSetLayoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+    descriptorSetLayoutInfo.pBindings = bindings.data();
+    VK_CHECK_RESULT(vkCreateDescriptorSetLayout(m_Device->GetHandle(), &descriptorSetLayoutInfo, nullptr, &m_DescriptorSetLayout));
+}
 
 void VulkanPipeline::CreateDescriptorPool()
 {
-    VkDescriptorPoolSize poolSize {};
-    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSize.descriptorCount = 3;
+    std::array<VkDescriptorPoolSize, 2> poolSizes {};
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[0].descriptorCount = 3;
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[1].descriptorCount = 3;
     
     VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = 1;
-    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = 3;
     VK_CHECK_RESULT(vkCreateDescriptorPool(m_Device->GetHandle(), &poolInfo, nullptr, &m_DescriptorPool));
 }

@@ -31,9 +31,10 @@ public:
     void Present(VulkanSemaphore* outSemaphore);
     void AcquireImage(VulkanSemaphore* outSemaphore, uint32_t& imageIndex);
 
-    inline VkExtent2D     GetExtent() const { return {m_WindowSpec.width, m_WindowSpec.height}; }
-    inline VkFormat       GetColorFormat() const { return m_ColorFormat; }
-    inline VkSwapchainKHR GetHandle() const { return m_Swapchain; }
+    inline VkExtent2D         GetExtent() const { return {m_WindowSpec.width, m_WindowSpec.height}; }
+    inline VkFormat           GetColorFormat() const { return m_ColorFormat; }
+    inline VkComponentMapping GetComponentMapping() const { return m_ComponentMapping; }
+    inline VkSwapchainKHR     GetHandle() const { return m_Swapchain; }
 private:
     VkSwapchainKHR m_Swapchain;
     VulkanDevice* m_Device;
@@ -42,6 +43,7 @@ private:
     WindowSpec m_WindowSpec;
     VkFormat m_ColorFormat;
     VkColorSpaceKHR m_ColorSpace;
+    VkComponentMapping m_ComponentMapping;
     uint32_t m_CurrentImage;
 };
 

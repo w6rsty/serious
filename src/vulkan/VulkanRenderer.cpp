@@ -13,10 +13,10 @@ namespace serious
 {
 
 static const std::vector<Vertex> vertices = {
-    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-    {{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-    {{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}},
-    {{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}},
+    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+    {{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+    {{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+    {{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
 };
 
 static const std::vector<uint16_t> indices = {
@@ -31,9 +31,9 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
     , m_Fences({})
     , m_ImageAvailableSems({})
     , m_RenderFinishedSems({})
-    , m_CmdPool(nullptr)
-    , m_CmdBufs({})
-    , m_TransferCmdPool(nullptr)
+    , m_GfxCmdPool(nullptr)
+    , m_GfxCmdBufs({})
+    , m_TsfCmdPool(nullptr)
     , m_ClearValue({ {{0.1f, 0.1f, 0.1f, 1.0f}} })
     , m_RenderPass(nullptr)
     , m_ShaderModules({})
@@ -41,11 +41,12 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
     , m_Images({})
     , m_ImageViews({})
     , m_Framebuffers({})
-    , m_VertexBuffer(m_Device)
-    , m_IndexBuffer(m_Device)
+    , m_VertexBuffer(nullptr)
+    , m_IndexBuffer(nullptr)
     , m_UniformBuffers({})
     , m_UniformBufferMapped({})
     , m_DescriptorSets({})
+    , m_TextureImage(nullptr)
 {
     ZoneScopedN("VulkanRenderer Init");
 
@@ -54,11 +55,11 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
 
     m_MaxFrame = m_Framebuffers.size();
 
-    m_CmdPool = CreateRef<VulkanCommandPool>(m_Device, m_Device->GetGraphicsQueue().get());
-    m_TransferCmdPool = CreateRef<VulkanCommandPool>(m_Device, m_Device->GetTransferQueue().get());
+    m_GfxCmdPool = CreateRef<VulkanCommandPool>(m_Device, m_Device->GetGraphicsQueue().get());
+    m_TsfCmdPool = CreateRef<VulkanCommandPool>(m_Device, m_Device->GetTransferQueue().get());
 
     for (size_t i = 0; i < m_MaxFrame; ++i) {
-        m_CmdBufs.push_back(m_CmdPool->Allocate());
+        m_GfxCmdBufs.push_back(m_GfxCmdPool->Allocate());
 
         m_Fences.emplace_back(device, VK_FENCE_CREATE_SIGNALED_BIT);
         m_ImageAvailableSems.emplace_back(device);
@@ -70,68 +71,43 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
 
     m_Pipeline = CreateRef<VulkanPipeline>(device, m_ShaderModules, *m_RenderPass, *m_Swapchain);
 
-    // Vertex buffer
-    {
-        VulkanBuffer stagingBuffer(m_Device);
+    m_VertexBuffer = CreateRef<VulkanDeviceBuffer>(
+        m_Device,
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        sizeof(Vertex) * vertices.size(),
+        vertices.data(),
+        *m_TsfCmdPool
+    );
 
-        stagingBuffer.Create(
-            sizeof(Vertex) * vertices.size(),
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,   
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-        );
-        stagingBuffer.MapOnce(vertices.data(), sizeof(Vertex) * vertices.size());
+    m_IndexBuffer = CreateRef<VulkanDeviceBuffer>(
+        m_Device,
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        sizeof(uint16_t) * indices.size(),
+        indices.data(),
+        *m_TsfCmdPool
+    );
 
-        m_VertexBuffer.Create(
-            sizeof(Vertex) * vertices.size(),
-            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-        );
-
-        VulkanCommandBuffer transferBuf = m_TransferCmdPool->Allocate();
-        m_VertexBuffer.Copy(stagingBuffer, sizeof(Vertex) * vertices.size(), transferBuf, *m_Device->GetTransferQueue());
-        m_TransferCmdPool->Free(transferBuf);
-        
-        stagingBuffer.Destroy();
-    }
-    // Index Buffer
-    {
-        VulkanBuffer stagingBuffer(m_Device);
-
-        stagingBuffer.Create(
-            sizeof(uint16_t) * indices.size(),
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,   
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-        );
-        stagingBuffer.MapOnce(indices.data(), sizeof(uint16_t) * indices.size());
-
-        m_IndexBuffer.Create(
-            sizeof(uint16_t) * indices.size(),
-            VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-        );
-
-        VulkanCommandBuffer transferBuf = m_TransferCmdPool->Allocate();
-        m_IndexBuffer.Copy(stagingBuffer, sizeof(uint16_t) * indices.size(), transferBuf, *m_Device->GetTransferQueue());
-        m_TransferCmdPool->Free(transferBuf);
-
-        stagingBuffer.Destroy(); 
-    }
     // Uniform buffer(Init)
-    {
-        VkDeviceSize uboSize = sizeof(UniformBufferObject);
-        m_UniformBuffers.resize(m_MaxFrame, VulkanBuffer(m_Device));
-        m_UniformBufferMapped.resize(m_MaxFrame, nullptr);
-        
-        for (uint32_t i = 0; i < m_MaxFrame; ++i) {
-            VulkanBuffer& uniformBuffer = m_UniformBuffers[i];
-            uniformBuffer.Create(
-                uboSize,
-                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-            );
-            m_UniformBufferMapped[i] = uniformBuffer.MapTo(uboSize);
-        }
+    VkDeviceSize uboSize = sizeof(UniformBufferObject);
+    m_UniformBuffers.resize(m_MaxFrame, VulkanBuffer(m_Device));
+    m_UniformBufferMapped.resize(m_MaxFrame, nullptr);
+    
+    for (uint32_t i = 0; i < m_MaxFrame; ++i) {
+        VulkanBuffer& uniformBuffer = m_UniformBuffers[i];
+        uniformBuffer.Create(
+            uboSize,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        );
+        m_UniformBufferMapped[i] = uniformBuffer.MapTo(uboSize);
     }
+    m_TextureImage = CreateRef<VulkanTextureImage>(
+        m_Device,
+        *m_Swapchain,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        "textures/texture.jpg",
+        *m_GfxCmdPool
+    );
     {
         m_DescriptorSets.resize(m_MaxFrame, VK_NULL_HANDLE);
         m_Pipeline->AllocateDescriptorSets(m_DescriptorSets);
@@ -142,16 +118,35 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
             bufferInfo.offset = 0;
             bufferInfo.range = sizeof(UniformBufferObject);
 
-            VkWriteDescriptorSet descriptorWrite {};
-            descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrite.dstSet = m_DescriptorSets[i];
-            descriptorWrite.dstBinding = 0;
-            descriptorWrite.dstArrayElement = 0;
-            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptorWrite.descriptorCount = 1;
-            descriptorWrite.pBufferInfo = &bufferInfo;
+            VkDescriptorImageInfo imageInfo {};
+            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageInfo.imageView = m_TextureImage->GetView();
+            imageInfo.sampler = m_TextureImage->GetSampler();
 
-            vkUpdateDescriptorSets(m_Device->GetHandle(), 1, &descriptorWrite, 0, nullptr);
+            std::array<VkWriteDescriptorSet, 2> descriptorWrites {};
+            descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[0].dstSet = m_DescriptorSets[i];
+            descriptorWrites[0].dstBinding = 0;
+            descriptorWrites[0].dstArrayElement = 0;
+            descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrites[0].descriptorCount = 1;
+            descriptorWrites[0].pBufferInfo = &bufferInfo;
+
+            descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[1].dstSet = m_DescriptorSets[i];
+            descriptorWrites[1].dstBinding = 1;
+            descriptorWrites[1].dstArrayElement = 0;
+            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            descriptorWrites[1].descriptorCount = 1;
+            descriptorWrites[1].pImageInfo = &imageInfo;
+
+            vkUpdateDescriptorSets(
+                m_Device->GetHandle(),
+                static_cast<uint32_t>(descriptorWrites.size()),
+                descriptorWrites.data(),
+                0,
+                nullptr
+            );
         }
     }
 }
@@ -163,14 +158,16 @@ VulkanRenderer::~VulkanRenderer()
 void VulkanRenderer::Destroy()
 {
     m_Pipeline->Destroy();
+
+    m_TextureImage->Destroy();
     
     for (VulkanBuffer& uniformBuffer : m_UniformBuffers) {
         uniformBuffer.Unmap();
         uniformBuffer.Destroy();
     }
 
-    m_VertexBuffer.Destroy();
-    m_IndexBuffer.Destroy();
+    m_VertexBuffer->Destroy();
+    m_IndexBuffer->Destroy();
     
     for (VulkanShaderModule& shaderModule : m_ShaderModules) {
         shaderModule.Destroy();
@@ -183,11 +180,11 @@ void VulkanRenderer::Destroy()
         m_Fences[i].Destroy();
         m_ImageAvailableSems[i].Destroy();
         m_RenderFinishedSems[i].Destroy();
-        m_CmdPool->Free(m_CmdBufs[i]);
+        m_GfxCmdPool->Free(m_GfxCmdBufs[i]);
     }
     
-    m_CmdPool->Destroy();
-    m_TransferCmdPool->Destroy();
+    m_GfxCmdPool->Destroy();
+    m_TsfCmdPool->Destroy();
 }
 
 void VulkanRenderer::OnUpdate()
@@ -195,7 +192,7 @@ void VulkanRenderer::OnUpdate()
     UpdateUniforms();
 
     m_Fences[m_CurrentFrame].WaitAndReset();
-    VulkanCommandBuffer& cmdBuf = m_CmdBufs[m_CurrentFrame];
+    VulkanCommandBuffer& cmdBuf = m_GfxCmdBufs[m_CurrentFrame];
     cmdBuf.Reset();
 
     uint32_t index;
@@ -212,11 +209,11 @@ void VulkanRenderer::OnUpdate()
     beginInfo.clearValueCount = 1;
     beginInfo.pClearValues = &m_ClearValue;
 
-    cmdBuf.Begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    cmdBuf.BeginSingle();
     m_RenderPass->CmdBegin(cmd, beginInfo);
     cmdBuf.BindGraphicsPipeline(*m_Pipeline);
-    cmdBuf.BindVertexBuffer(m_VertexBuffer, 0);
-    cmdBuf.BindIndexBuffer(m_IndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+    cmdBuf.BindVertexBuffer(m_VertexBuffer->GetHandle(), 0);
+    cmdBuf.BindIndexBuffer(m_IndexBuffer->GetHandle(), 0, VK_INDEX_TYPE_UINT16);
     cmdBuf.BindDescriptorSet(m_Pipeline->GetPipelineLayout(), m_DescriptorSets[m_CurrentFrame]);
     cmdBuf.DrawIndexed(indices.size(), indices.size() / 3, 0, 0, 0);
     m_RenderPass->CmdEnd(cmd);
@@ -252,7 +249,7 @@ void VulkanRenderer::UpdateUniforms()
 
     UniformBufferObject ubo = {};
     ubo.model = glm::rotate(glm::mat4(1.0f), time, glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f));
+    ubo.view = glm::lookAt(glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     ubo.proj = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 10.0f);
     ubo.proj[1][1] *= -1;
     
@@ -275,10 +272,7 @@ void VulkanRenderer::CreateFrameDatas()
     imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     imageViewInfo.format = m_Swapchain->GetColorFormat();
-    imageViewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+    imageViewInfo.components = VkComponentMapping {};
     imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     imageViewInfo.subresourceRange.baseMipLevel = 0;
     imageViewInfo.subresourceRange.levelCount = 1;

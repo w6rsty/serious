@@ -39,12 +39,13 @@ public:
     void Destroy();
     void SetupPresentQueue(VkSurfaceKHR surface);
 
-    inline VkDevice         GetHandle() const { return m_Device; } 
-    inline VkPhysicalDevice GetGpuHandle() const { return m_Gpu; }
-    inline Ref<VulkanQueue> GetGraphicsQueue() { return m_GraphicsQueue; }
-    inline Ref<VulkanQueue> GetComputeQueue() { return m_ComputeQueue; }
-    inline Ref<VulkanQueue> GetTransferQueue() { return m_TransferQueue; }
-    inline Ref<VulkanQueue> GetPresentQueue() { return m_PresentQueue; }
+    inline VkDevice                   GetHandle() const { return m_Device; } 
+    inline VkPhysicalDevice           GetGpuHandle() const { return m_Gpu; }
+    inline VkPhysicalDeviceProperties GetGpuProperties() const { return m_GpuProps; }
+    inline Ref<VulkanQueue>           GetGraphicsQueue() { return m_GraphicsQueue; }
+    inline Ref<VulkanQueue>           GetComputeQueue() { return m_ComputeQueue; }
+    inline Ref<VulkanQueue>           GetTransferQueue() { return m_TransferQueue; }
+    inline Ref<VulkanQueue>           GetPresentQueue() { return m_PresentQueue; }
 private:
     void SelectGpu(VkInstance instance);
     Ref<VulkanCommandPool> GetOrCreateThreadLocalCommandPool();

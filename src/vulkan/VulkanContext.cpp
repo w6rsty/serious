@@ -47,7 +47,9 @@ VulkanInstance::VulkanInstance()
         VK_KHR_SURFACE_EXTENSION_NAME,
         "VK_KHR_win32_surface"
     };
-    requiredInstanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    if (s_Validation) {
+        requiredInstanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    }
     if (!validateExtension(requiredInstanceExtensions, supportedInstanceExtensions)) {
         Fatal("Required extensions not found");
     }
@@ -82,12 +84,14 @@ VulkanInstance::VulkanInstance()
     VK_CHECK_RESULT(vkCreateInstance(&instanceInfo, nullptr, &m_Instance));
 
     /// Debug messenger
-    VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerInfo = {};
-    debugUtilsMessengerInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-    debugUtilsMessengerInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-    debugUtilsMessengerInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
-    debugUtilsMessengerInfo.pfnUserCallback = VulkanDebugUtilsMessengerCallback;
-    m_DebugUtilsMessenger = CreateDebugUtilsMessengerEXT(m_Instance, debugUtilsMessengerInfo);
+    if (s_Validation) {
+        VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerInfo = {};
+        debugUtilsMessengerInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        debugUtilsMessengerInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+        debugUtilsMessengerInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
+        debugUtilsMessengerInfo.pfnUserCallback = VulkanDebugUtilsMessengerCallback;
+        m_DebugUtilsMessenger = CreateDebugUtilsMessengerEXT(m_Instance, debugUtilsMessengerInfo);
+    }
 }
 
 VulkanInstance::~VulkanInstance()
@@ -96,7 +100,9 @@ VulkanInstance::~VulkanInstance()
 
 void VulkanInstance::Destroy()
 {
-    DestroyDebugUtilsMessengerEXT(m_Instance, m_DebugUtilsMessenger);
+    if (s_Validation) {
+        DestroyDebugUtilsMessengerEXT(m_Instance, m_DebugUtilsMessenger);
+    }
     vkDestroyInstance(m_Instance, nullptr);
 }
 

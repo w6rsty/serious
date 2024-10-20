@@ -21,6 +21,7 @@ class VulkanCommandPool;
 class VulkanShaderModule;
 class VulkanCommandBuffer;
 class VulkanPipelineLayout;
+class VulkanTextureImage;
 
 struct UniformBufferObject {
     glm::mat4 model;
@@ -50,9 +51,9 @@ private:
     std::vector<VulkanSemaphore> m_ImageAvailableSems;
     std::vector<VulkanSemaphore> m_RenderFinishedSems;
 
-    Ref<VulkanCommandPool> m_CmdPool;
-    std::vector<VulkanCommandBuffer> m_CmdBufs;
-    Ref<VulkanCommandPool> m_TransferCmdPool;
+    Ref<VulkanCommandPool> m_GfxCmdPool;
+    std::vector<VulkanCommandBuffer> m_GfxCmdBufs;
+    Ref<VulkanCommandPool> m_TsfCmdPool;
 
     VkClearValue m_ClearValue;
     Ref<VulkanRenderPass> m_RenderPass;
@@ -63,11 +64,13 @@ private:
     std::vector<VkImageView> m_ImageViews;
     std::vector<VkFramebuffer> m_Framebuffers;
     
-    VulkanBuffer m_VertexBuffer;
-    VulkanBuffer m_IndexBuffer;
+    Ref<VulkanDeviceBuffer> m_VertexBuffer;
+    Ref<VulkanDeviceBuffer> m_IndexBuffer;
     std::vector<VulkanBuffer> m_UniformBuffers;
     std::vector<void*> m_UniformBufferMapped;
     std::vector<VkDescriptorSet> m_DescriptorSets;
+
+    Ref<VulkanTextureImage> m_TextureImage;
 };
 
 }

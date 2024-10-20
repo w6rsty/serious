@@ -1,8 +1,8 @@
 #include "serious/vulkan/VulkanSwapchain.hpp"
-#include "serious/VulkanUtils.hpp"
 #include "serious/vulkan/VulkanDevice.hpp"
 #include "serious/vulkan/VulkanPass.hpp"
 #include "serious/vulkan/VulkanWindow.hpp"
+#include "serious/VulkanUtils.hpp"
 
 #include <Tracy.hpp>
 
@@ -16,6 +16,7 @@ VulkanSwapchain::VulkanSwapchain(VulkanDevice* device, VulkanWindow* window)
     , m_WindowSpec({})
     , m_ColorFormat(VK_FORMAT_UNDEFINED)
     , m_ColorSpace(VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+    , m_ComponentMapping({VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A})
     , m_CurrentImage(UINT32_MAX)
 {
 }
@@ -99,6 +100,9 @@ void VulkanSwapchain::Create()
             }
         }
     }
+    if (m_ColorFormat == VK_FORMAT_B8G8R8A8_UNORM) {
+        std::swap(m_ComponentMapping.r, m_ComponentMapping.b);
+    } 
 
     VkSwapchainCreateInfoKHR swapchainInfo = {};
     swapchainInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;

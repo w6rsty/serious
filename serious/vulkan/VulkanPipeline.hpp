@@ -43,6 +43,7 @@ public:
     inline VkDescriptorSetLayout GetDescriptorSetLayout() const { return m_DescriptorSetLayout; }
     inline VkPipelineLayout GetPipelineLayout() const { return m_PipelineLayout; }
 private:
+    void CreateDescriptorSetLayout();
     void CreateDescriptorPool();
 private:
     VkPipeline m_Pipeline;

@@ -53,6 +53,7 @@ VulkanDevice::VulkanDevice(VkInstance instance)
     vkGetPhysicalDeviceQueueFamilyProperties(m_Gpu, &queueFamilyCount, nullptr);
     std::vector<VkQueueFamilyProperties> queueFamilyProperties(queueFamilyCount);
     vkGetPhysicalDeviceQueueFamilyProperties(m_Gpu, &queueFamilyCount, queueFamilyProperties.data());
+    Info("max anisotropy: {}", m_GpuProps.limits.maxSamplerAnisotropy);
     Info("found {} available queue(s)", queueFamilyCount);
     
     /// Queues create infos(Reference from Unreal Engine VulkanRHI)
@@ -121,12 +122,16 @@ VulkanDevice::VulkanDevice(VkInstance instance)
         }
     }
 
+    VkPhysicalDeviceFeatures deviceFeatures = {};
+    deviceFeatures.samplerAnisotropy = VK_TRUE;
+
     VkDeviceCreateInfo deviceInfo = {};
     deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     deviceInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
     deviceInfo.ppEnabledExtensionNames = deviceExtensions.data();
     deviceInfo.queueCreateInfoCount = queueFamilyInfos.size();
-    deviceInfo.pQueueCreateInfos = queueFamilyInfos.data(); 
+    deviceInfo.pQueueCreateInfos = queueFamilyInfos.data();
+    deviceInfo.pEnabledFeatures = &deviceFeatures;
     VK_CHECK_RESULT(vkCreateDevice(m_Gpu, &deviceInfo, nullptr, &m_Device));
 
     /// Create queues https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkGetDeviceQueue.html
@@ -156,9 +161,6 @@ void VulkanDevice::SetupPresentQueue(VkSurfaceKHR surface)
         VkBool32 result = VK_FALSE;
         uint32_t familyIndex = queue->GetFamilyIndex();
         VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceSupportKHR(gpu, familyIndex, surface, &result));
-        if (result) {
-            Info("queue family {} support presentation", familyIndex);
-        }
         return result == VK_TRUE;
     };
     if (!isSupportPresent(m_Gpu, m_GraphicsQueue)) {

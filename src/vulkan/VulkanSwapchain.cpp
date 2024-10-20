@@ -17,6 +17,7 @@ VulkanSwapchain::VulkanSwapchain(VulkanDevice* device, VulkanWindow* window)
     , m_ColorFormat(VK_FORMAT_UNDEFINED)
     , m_ColorSpace(VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
     , m_ComponentMapping({VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A})
+    , m_DepthFormat(VK_FORMAT_UNDEFINED)
     , m_CurrentImage(UINT32_MAX)
 {
 }
@@ -102,7 +103,10 @@ void VulkanSwapchain::Create()
     }
     if (m_ColorFormat == VK_FORMAT_B8G8R8A8_UNORM) {
         std::swap(m_ComponentMapping.r, m_ComponentMapping.b);
-    } 
+    }
+
+    // Should query for support
+    m_DepthFormat = VK_FORMAT_D32_SFLOAT;
 
     VkSwapchainCreateInfoKHR swapchainInfo = {};
     swapchainInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -122,7 +126,7 @@ void VulkanSwapchain::Create()
     swapchainInfo.oldSwapchain = VK_NULL_HANDLE;
 
     VK_CHECK_RESULT(vkCreateSwapchainKHR(m_Device->GetHandle(), &swapchainInfo, nullptr, &m_Swapchain));
-    Info("create swapchain with {} {} {} num images {} {}x{}", VulkanPresentModeString(swapchainPresentMode), VulkanFormatString(m_ColorFormat), VulkanColorSpaceString(m_ColorSpace), desiredImageCount, sizeX, sizeY);
+    Info("create swapchain {} | {} | {} | num images {}:{}x{}", VulkanPresentModeString(swapchainPresentMode), VulkanFormatString(m_ColorFormat), VulkanColorSpaceString(m_ColorSpace), desiredImageCount, sizeX, sizeY);
 }
 
 

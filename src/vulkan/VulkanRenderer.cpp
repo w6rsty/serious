@@ -13,14 +13,20 @@ namespace serious
 {
 
 static const std::vector<Vertex> vertices = {
-    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-    {{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-    {{ 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-    {{-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
+    {{-0.5f, -0.5f,  0.1f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+    {{ 0.5f, -0.5f,  0.1f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+    {{ 0.5f,  0.5f,  0.1f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+    {{-0.5f,  0.5f,  0.1f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
+
+    {{-0.5f, -0.5f, -0.1f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{ 0.5f, -0.5f, -0.1f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+    {{ 0.5f,  0.5f, -0.1f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+    {{-0.5f,  0.5f, -0.1f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
 };
 
 static const std::vector<uint16_t> indices = {
-    0, 1, 2, 2, 3, 0
+    0, 1, 2, 2, 3, 0,
+    4, 5, 6, 6, 7, 4,
 };
 
 VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
@@ -34,7 +40,7 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
     , m_GfxCmdPool(nullptr)
     , m_GfxCmdBufs({})
     , m_TsfCmdPool(nullptr)
-    , m_ClearValue({ {{0.1f, 0.1f, 0.1f, 1.0f}} })
+    , m_ClearValues({})
     , m_RenderPass(nullptr)
     , m_ShaderModules({})
     , m_Pipeline(nullptr)
@@ -47,16 +53,28 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
     , m_UniformBufferMapped({})
     , m_DescriptorSets({})
     , m_TextureImage(nullptr)
+    , m_DepthImage(nullptr)
 {
     ZoneScopedN("VulkanRenderer Init");
-
-    m_RenderPass = CreateRef<VulkanRenderPass>(device, *m_Swapchain);
-    CreateFrameDatas();
-
-    m_MaxFrame = m_Framebuffers.size();
+    
+    m_ClearValues[0] = {{{0.1f, 0.1f, 0.1f, 1.0f}}};
+    m_ClearValues[1] = {{{1.0f, 0}}};
 
     m_GfxCmdPool = CreateRef<VulkanCommandPool>(m_Device, m_Device->GetGraphicsQueue().get());
     m_TsfCmdPool = CreateRef<VulkanCommandPool>(m_Device, m_Device->GetTransferQueue().get());
+    
+    // Pipeline resources
+    m_RenderPass = CreateRef<VulkanRenderPass>(device, *m_Swapchain);
+    m_DepthImage = CreateRef<VulkanDepthImage>(
+        m_Device,
+        *m_Swapchain,
+        *m_GfxCmdPool
+    );
+    CreateFrameDatas();
+    m_MaxFrame = m_Framebuffers.size();
+    m_ShaderModules.emplace_back(device, "shaders/vert.spv", VK_SHADER_STAGE_VERTEX_BIT);    
+    m_ShaderModules.emplace_back(device, "shaders/frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);    
+    m_Pipeline = CreateRef<VulkanPipeline>(device, m_ShaderModules, *m_RenderPass, *m_Swapchain);
 
     for (size_t i = 0; i < m_MaxFrame; ++i) {
         m_GfxCmdBufs.push_back(m_GfxCmdPool->Allocate());
@@ -65,11 +83,6 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
         m_ImageAvailableSems.emplace_back(device);
         m_RenderFinishedSems.emplace_back(device);
     }
-
-    m_ShaderModules.emplace_back(device, "shaders/vert.spv", VK_SHADER_STAGE_VERTEX_BIT);    
-    m_ShaderModules.emplace_back(device, "shaders/frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);    
-
-    m_Pipeline = CreateRef<VulkanPipeline>(device, m_ShaderModules, *m_RenderPass, *m_Swapchain);
 
     m_VertexBuffer = CreateRef<VulkanDeviceBuffer>(
         m_Device,
@@ -87,11 +100,10 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
         *m_TsfCmdPool
     );
 
-    // Uniform buffer(Init)
+    // Descriptor resources
     VkDeviceSize uboSize = sizeof(UniformBufferObject);
     m_UniformBuffers.resize(m_MaxFrame, VulkanBuffer(m_Device));
-    m_UniformBufferMapped.resize(m_MaxFrame, nullptr);
-    
+    m_UniformBufferMapped.resize(m_MaxFrame, nullptr);    
     for (uint32_t i = 0; i < m_MaxFrame; ++i) {
         VulkanBuffer& uniformBuffer = m_UniformBuffers[i];
         uniformBuffer.Create(
@@ -101,53 +113,52 @@ VulkanRenderer::VulkanRenderer(VulkanDevice* device, VulkanSwapchain* swapchain)
         );
         m_UniformBufferMapped[i] = uniformBuffer.MapTo(uboSize);
     }
+
     m_TextureImage = CreateRef<VulkanTextureImage>(
         m_Device,
         *m_Swapchain,
-        VK_IMAGE_LAYOUT_UNDEFINED,
         "textures/texture.jpg",
         *m_GfxCmdPool
     );
-    {
-        m_DescriptorSets.resize(m_MaxFrame, VK_NULL_HANDLE);
-        m_Pipeline->AllocateDescriptorSets(m_DescriptorSets);
 
-        for (uint32_t i = 0; i < m_MaxFrame; ++i) {
-            VkDescriptorBufferInfo bufferInfo {};
-            bufferInfo.buffer = m_UniformBuffers[i].GetHandle();
-            bufferInfo.offset = 0;
-            bufferInfo.range = sizeof(UniformBufferObject);
+    m_DescriptorSets.resize(m_MaxFrame, VK_NULL_HANDLE);
+    m_Pipeline->AllocateDescriptorSets(m_DescriptorSets);
 
-            VkDescriptorImageInfo imageInfo {};
-            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfo.imageView = m_TextureImage->GetView();
-            imageInfo.sampler = m_TextureImage->GetSampler();
+    for (uint32_t i = 0; i < m_MaxFrame; ++i) {
+        VkDescriptorBufferInfo bufferInfo {};
+        bufferInfo.buffer = m_UniformBuffers[i].GetHandle();
+        bufferInfo.offset = 0;
+        bufferInfo.range = sizeof(UniformBufferObject);
 
-            std::array<VkWriteDescriptorSet, 2> descriptorWrites {};
-            descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[0].dstSet = m_DescriptorSets[i];
-            descriptorWrites[0].dstBinding = 0;
-            descriptorWrites[0].dstArrayElement = 0;
-            descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptorWrites[0].descriptorCount = 1;
-            descriptorWrites[0].pBufferInfo = &bufferInfo;
+        VkDescriptorImageInfo imageInfo {};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = m_TextureImage->GetView();
+        imageInfo.sampler = m_TextureImage->GetSampler();
 
-            descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[1].dstSet = m_DescriptorSets[i];
-            descriptorWrites[1].dstBinding = 1;
-            descriptorWrites[1].dstArrayElement = 0;
-            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            descriptorWrites[1].descriptorCount = 1;
-            descriptorWrites[1].pImageInfo = &imageInfo;
+        std::array<VkWriteDescriptorSet, 2> descriptorWrites {};
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = m_DescriptorSets[i];
+        descriptorWrites[0].dstBinding = 0;
+        descriptorWrites[0].dstArrayElement = 0;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pBufferInfo = &bufferInfo;
 
-            vkUpdateDescriptorSets(
-                m_Device->GetHandle(),
-                static_cast<uint32_t>(descriptorWrites.size()),
-                descriptorWrites.data(),
-                0,
-                nullptr
-            );
-        }
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = m_DescriptorSets[i];
+        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].dstArrayElement = 0;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pImageInfo = &imageInfo;
+
+        vkUpdateDescriptorSets(
+            m_Device->GetHandle(),
+            static_cast<uint32_t>(descriptorWrites.size()),
+            descriptorWrites.data(),
+            0,
+            nullptr
+        );
     }
 }
 
@@ -158,17 +169,7 @@ VulkanRenderer::~VulkanRenderer()
 void VulkanRenderer::Destroy()
 {
     m_Pipeline->Destroy();
-
-    m_TextureImage->Destroy();
-    
-    for (VulkanBuffer& uniformBuffer : m_UniformBuffers) {
-        uniformBuffer.Unmap();
-        uniformBuffer.Destroy();
-    }
-
-    m_VertexBuffer->Destroy();
-    m_IndexBuffer->Destroy();
-    
+    m_DepthImage->Destroy();
     for (VulkanShaderModule& shaderModule : m_ShaderModules) {
         shaderModule.Destroy();
     }
@@ -176,6 +177,14 @@ void VulkanRenderer::Destroy()
     DestroyFrameDatas();
     m_RenderPass->Destroy();
 
+    m_TextureImage->Destroy();
+    for (VulkanBuffer& uniformBuffer : m_UniformBuffers) {
+        uniformBuffer.Unmap();
+        uniformBuffer.Destroy();
+    }
+    m_VertexBuffer->Destroy();
+    m_IndexBuffer->Destroy();
+    
     for (size_t i = 0; i < m_MaxFrame; ++i) {
         m_Fences[i].Destroy();
         m_ImageAvailableSems[i].Destroy();
@@ -206,8 +215,8 @@ void VulkanRenderer::OnUpdate()
     beginInfo.framebuffer = m_Framebuffers[index];
     beginInfo.renderArea.offset = {0, 0};
     beginInfo.renderArea.extent = m_Swapchain->GetExtent();
-    beginInfo.clearValueCount = 1;
-    beginInfo.pClearValues = &m_ClearValue;
+    beginInfo.clearValueCount = static_cast<uint32_t>(m_ClearValues.size());
+    beginInfo.pClearValues = m_ClearValues.data();
 
     cmdBuf.BeginSingle();
     m_RenderPass->CmdBegin(cmd, beginInfo);
@@ -287,15 +296,17 @@ void VulkanRenderer::CreateFrameDatas()
     VkDevice device = m_Device->GetHandle();
 
     VkExtent2D windowSpec = m_Swapchain->GetExtent();
-    VkFramebufferCreateInfo framebufferInfo = {};
-    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    framebufferInfo.renderPass = m_RenderPass->GetHandle();
-    framebufferInfo.attachmentCount = 1;
-    framebufferInfo.width = windowSpec.width;
-    framebufferInfo.height = windowSpec.height;
-    framebufferInfo.layers = 1;
     for (size_t i = 0; i < m_Framebuffers.size(); ++i) {
-        framebufferInfo.pAttachments = &m_ImageViews[i];
+        std::array<VkImageView, 2> attachments = {m_ImageViews[i], m_DepthImage->GetView()};
+
+        VkFramebufferCreateInfo framebufferInfo = {};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = m_RenderPass->GetHandle();
+        framebufferInfo.width = windowSpec.width;
+        framebufferInfo.height = windowSpec.height;
+        framebufferInfo.layers = 1;
+        framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+        framebufferInfo.pAttachments = attachments.data();
         VK_CHECK_RESULT(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &m_Framebuffers[i]));
     }
 }

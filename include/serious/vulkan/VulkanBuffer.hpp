@@ -7,8 +7,8 @@
 namespace serious
 {
 
-class VulkanDevice;
 struct Vertex;
+class VulkanDevice;
 class VulkanCommandPool;
 class VulkanCommandBuffer;
 class VulkanQueue;
@@ -59,13 +59,42 @@ private:
     VulkanBuffer m_DeviceBuffer;
 };
 
+void CreateImage(
+    uint32_t width,
+    uint32_t height,
+    VkFormat format,
+    VkImageTiling imageTiling,
+    VkImageUsageFlags usage,
+    VkMemoryPropertyFlags properties,
+    VkImage& image,
+    VkDeviceMemory& imageMemory,
+    VulkanDevice& device
+);
+
+void CreateImageView(
+    VkImage image,
+    VkFormat format,
+    VkImageAspectFlags aspectFlags,
+    VkComponentMapping mapping,
+    VkImageView& imageView,
+    VkDevice device
+);
+
+void TransitionLayout(
+    VkImage image,
+    VkImageLayout srcLayout,
+    VkImageLayout dstLayout,
+    VkImageAspectFlags aspectFlags,
+    VulkanCommandPool& cmdPool,
+    VulkanQueue& gfxQueue
+);
+
 class VulkanTextureImage final
 {
 public:
     VulkanTextureImage(
         VulkanDevice* device,
         const VulkanSwapchain& swapchain,
-        VkImageLayout initialLayout,
         const std::string& path,
         VulkanCommandPool& cmdPool);
     ~VulkanTextureImage();
@@ -75,25 +104,36 @@ public:
     inline VkImageView GetView() const { return m_ImageView; }
     inline VkSampler   GetSampler() const { return m_Sampler; }
 private:
-    void CreateImage(
-        uint32_t width,
-        uint32_t height,
-        VkFormat format,
-        VkImageTiling imageTiling,
-        VkImageUsageFlags usage,
-        VkMemoryPropertyFlags properties);
-    void TransitionLayout(VkImageLayout newLayout, VulkanCommandPool& cmdPool);
     void CopyBufferToImage(const VulkanBuffer& buffer, VulkanCommandPool& cmdPool);
-    void CreateView(VkFormat format, VkComponentMapping mapping);
     void CreateSampler();
 private:
     VkImage m_Image;
-    int m_Width, m_Height, m_Channels;
     VulkanDevice* m_Device;
-    VkDeviceMemory m_DeviceMemory;
-    VkImageLayout m_Layout;
+    int m_Width;
+    int m_Height;
+    VkDeviceMemory m_Memory;
     VkImageView m_ImageView;
     VkSampler m_Sampler;
+};
+
+class VulkanDepthImage final
+{
+public:
+    VulkanDepthImage(
+        VulkanDevice* device,
+        const VulkanSwapchain& swapchain,
+        VulkanCommandPool& cmdPool);
+    ~VulkanDepthImage();
+    void Destroy();
+
+    inline VkImage     GetHandle() const { return m_Image; }
+    inline VkImageView GetView() const { return m_ImageView; }
+private:
+    VkImage m_Image;
+    VulkanDevice* m_Device;
+    VkDeviceMemory m_Memory;
+    VkImageView m_ImageView;
+    VkFormat m_DepthFormat;
 };
 
 }

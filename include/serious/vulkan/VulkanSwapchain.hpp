@@ -33,6 +33,7 @@ public:
 
     inline VkExtent2D         GetExtent() const { return {m_WindowSpec.width, m_WindowSpec.height}; }
     inline VkFormat           GetColorFormat() const { return m_ColorFormat; }
+    inline VkFormat           GetDepthFormat() const { return m_DepthFormat; }
     inline VkComponentMapping GetComponentMapping() const { return m_ComponentMapping; }
     inline VkSwapchainKHR     GetHandle() const { return m_Swapchain; }
 private:
@@ -44,6 +45,7 @@ private:
     VkFormat m_ColorFormat;
     VkColorSpaceKHR m_ColorSpace;
     VkComponentMapping m_ComponentMapping;
+    VkFormat m_DepthFormat;
     uint32_t m_CurrentImage;
 };
 

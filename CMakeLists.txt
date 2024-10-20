@@ -21,7 +21,7 @@ execute_process(COMMAND ${GLSLC} ${PROJECT_SOURCE_DIR}/shaders/shader.frag -o ${
 file(GLOB_RECURSE SRC src/*.cpp)
 
 add_library(serious STATIC ${SRC})
-target_include_directories(serious PUBLIC .)
+target_include_directories(serious PUBLIC include)
 target_link_libraries(serious PUBLIC Vulkan::Vulkan fmt glm STB)
 target_compile_features(serious PUBLIC cxx_std_17)
 target_compile_definitions(serious PUBLIC

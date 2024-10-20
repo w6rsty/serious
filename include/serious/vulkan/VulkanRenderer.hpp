@@ -1,14 +1,17 @@
 #pragma once
 
-#include "serious/VulkanUtils.hpp"
 #include "serious/vulkan/VulkanSyncs.hpp"
 #include "serious/vulkan/VulkanBuffer.hpp"
 #include "serious/vulkan/VulkanCommand.hpp"
 #include "serious/vulkan/VulkanPipeline.hpp"
+#include "serious/VulkanUtils.hpp"
 
 #define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
+#include <array>
 
 namespace serious
 {
@@ -55,7 +58,7 @@ private:
     std::vector<VulkanCommandBuffer> m_GfxCmdBufs;
     Ref<VulkanCommandPool> m_TsfCmdPool;
 
-    VkClearValue m_ClearValue;
+    std::array<VkClearValue, 2> m_ClearValues;
     Ref<VulkanRenderPass> m_RenderPass;
     std::vector<VulkanShaderModule> m_ShaderModules;
     Ref<VulkanPipeline> m_Pipeline;
@@ -71,6 +74,7 @@ private:
     std::vector<VkDescriptorSet> m_DescriptorSets;
 
     Ref<VulkanTextureImage> m_TextureImage;
+    Ref<VulkanDepthImage> m_DepthImage;
 };
 
 }

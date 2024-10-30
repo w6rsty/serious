@@ -1,39 +1,37 @@
 #pragma once
 
-#include "serious/vulkan/VulkanPipeline.hpp"
+#include "serious/vulkan/VulkanDevice.hpp"
 
 #include <vulkan/vulkan.h>
 
 namespace serious
 {
 
-class VulkanCommandPool;
-class VulkanQueue;
-class VulkanDevice;
-class VulkanBuffer;
-
 class VulkanCommandBuffer final
 {
 public:
     VulkanCommandBuffer();
 
+    void BeginRenderPass(const VkRenderPassBeginInfo& renderPassInfo, VkSubpassContents contents = VK_SUBPASS_CONTENTS_INLINE);
+    void EndRenderPass();
+    void NextSubpass(VkSubpassContents contents);
     void Begin(VkCommandBufferUsageFlags flags);
+    // Begin recording a command buffer for a single use, no need to reset
     void BeginSingle();
     void End();
     void Reset();
-    void BindGraphicsPipeline(const VulkanPipeline& pipeline);
+    void BindGraphicsPipeline(VkPipeline pipeline);
     void BindVertexBuffer(VkBuffer buffer, uint32_t offset);
     void BindIndexBuffer(VkBuffer buffer, uint32_t offset, VkIndexType type);
     void BindDescriptorSet(VkPipelineLayout layout, const VkDescriptorSet& descriptorSet);
-    void CopyBuffer(const VulkanBuffer& srcBuf, const VulkanBuffer& dstBuf, const VkDeviceSize& size);
+    void CopyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
     void CopyBufferToImage(VkBuffer buffer, VkImage image, const VkBufferImageCopy* region);
     void Draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
     void DrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
     void PipelineMemoryBarrier(VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, const VkMemoryBarrier* memory);
     void PipelineBufferBarrier(VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, const VkBufferMemoryBarrier* bufferMemory);
     void PipelineImageBarrier(VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, const VkImageMemoryBarrier* imageMemory);
-    // Submit one command buffer without synchronization objects
-    void SubmitOnceTo(VulkanQueue& queue);
+    void SubmitOnceTo(VulkanQueue& queue, VkFence fence = VK_NULL_HANDLE);
 
     inline VkCommandBuffer GetHandle() const { return m_CmdBuf; }
 private:
@@ -45,18 +43,13 @@ private:
 class VulkanCommandPool final
 {
 public:
-    VulkanCommandPool(VulkanDevice* device, VulkanQueue* queue); 
-    ~VulkanCommandPool();
-    void Destroy();
-    
     VulkanCommandBuffer Allocate();
     void Free(VulkanCommandBuffer& cmdBuf);
-
-    inline VkCommandPool GetHandle() const { return m_CmdPool; }
 private:
     VkCommandPool m_CmdPool;
-    VulkanDevice* m_Device;
-    VulkanQueue* m_Queue;
+    VkDevice m_Device;
+
+    friend class VulkanDevice;
 };
 
 }

@@ -1,6 +1,9 @@
-.cache
-build
-shaders/*.spv
-rd.cap
+.cache/
+build/
 thirdparty
-target
+target/
+assets/
+shaders/*.spv
+
+# RenderDoc captures
+rd.cap

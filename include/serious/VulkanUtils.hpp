@@ -23,35 +23,28 @@ constexpr Ref<T> CreateRef(Args&&... args)
 
 std::string ReadFile(const std::string& filename);
 
-#define Info(...) \
+#define VKInfo(...) \
 fmt::print(fmt::fg(fmt::color::teal), __VA_ARGS__); \
 fmt::print("\n")
 
-#define Warn(...) \
+#define VKWarn(...) \
 fmt::print(fmt::fg(fmt::color::peru), __VA_ARGS__); \
 fmt::print("\n")
 
-#define Error(...) \
+#define VKError(...) \
 fmt::print(fmt::fg(fmt::color::red), __VA_ARGS__); \
 fmt::print("\n")
 
-#define Fatal(...) \
+#define VKFatal(...) \
 fmt::print(fmt::fg(fmt::color::red), __VA_ARGS__); \
 fmt::print(fmt::fg(fmt::color::red), " At {} {} {}\n", __FILE__, __LINE__, __FUNCTION__); \
 fmt::print("\n"); \
 std::terminate()
 
-#if defined(_DEBUG) || defined(ENABLE_VALIDATION)
-    static constexpr bool s_Validation = true;
-#else
-    static constexpr bool s_Validation = false;
-#endif
-
-
 #if defined(_DEBUG)
 #define VK_CHECK_RESULT(result) \
 if (result != VK_SUCCESS) { \
-    Error("Vulkan error : {}", (uint32_t)result); \
+    VKError("Vulkan error : {:x}", (uint32_t)result); \
 }
 #else
 #define VK_CHECK_RESULT(result) result
@@ -68,7 +61,7 @@ static inline bool validateExtension(const std::vector<const char*>& required, c
                 return strcmp(ep.extensionName, extension) == 0;
             }) == available.end()
         ) {
-            Error("Required extension {} not found", extension);
+            VKError("Required extension {} not found", extension);
             return false;
         }
     }
@@ -86,49 +79,14 @@ static inline bool validateLayers(const std::vector<const char*>& required, cons
                 return strcmp(lp.layerName, layer) == 0;
             }) == available.end()
         ) {
-            Error("Required layer {} not found", layer);
+            VKError("Required layer {} not found", layer);
             return false;
         }
     }
     return true;
 }
 
-constexpr const char* VulkanDebugUtilsMessageSeverity(const VkDebugUtilsMessageSeverityFlagBitsEXT severity)
-{
-    switch (severity) {
-        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:   return "VERBOSE";
-        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:      return "INFO";
-        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:   return "WARNING";
-        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:     return "ERROR";
-        default:                                                return "UNKNOWN";
-    }
-}
-   
-static inline VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugUtilsMessengerCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
-{
-    (void)pUserData;
-    (void)messageType;
-    Warn("[{}] {}", VulkanDebugUtilsMessageSeverity(messageSeverity), pCallbackData->pMessage);
-    return VK_FALSE;
-}
-
-static inline VkDebugUtilsMessengerEXT CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT& creaetInfo)
-{
-    static PFN_vkCreateDebugUtilsMessengerEXT fpCreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-    VkDebugUtilsMessengerEXT debugUtilsMessenger;
-    VK_CHECK_RESULT(fpCreateDebugUtilsMessengerEXT(instance, &creaetInfo, nullptr, &debugUtilsMessenger));
-    return debugUtilsMessenger;
-}
-
-static inline void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugUtilsMessenger)
-{
-    static PFN_vkDestroyDebugUtilsMessengerEXT fpDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-    if (debugUtilsMessenger != VK_NULL_HANDLE) {
-        fpDestroyDebugUtilsMessengerEXT(instance, debugUtilsMessenger, nullptr);
-    }
-}
-
-constexpr const char* VulkanPresentModeString(const VkPresentModeKHR presentMode)
+constexpr const char* VulkanPresentModeString(VkPresentModeKHR presentMode)
 {
     switch (presentMode) {
         case VK_PRESENT_MODE_IMMEDIATE_KHR: return "VK_PRESENT_MODE_IMMEDIATE_KHR";
@@ -140,7 +98,7 @@ constexpr const char* VulkanPresentModeString(const VkPresentModeKHR presentMode
         }
 }
 
-constexpr const char* VulkanFormatString(const VkFormat format)
+constexpr const char* VulkanFormatString(VkFormat format)
 {
     switch (format) {
         case VK_FORMAT_UNDEFINED: return "VK_FORMAT_UNDEFINED";
@@ -158,7 +116,7 @@ constexpr const char* VulkanFormatString(const VkFormat format)
     }
 }
 
-constexpr const char* VulkanColorSpaceString(const VkColorSpaceKHR colorSpace)
+constexpr const char* VulkanColorSpaceString(VkColorSpaceKHR colorSpace)
 {
     switch (colorSpace) {
         case VK_COLOR_SPACE_SRGB_NONLINEAR_KHR: return "VK_COLOR_SPACE_SRGB_NONLINEAR_KHR";
@@ -168,6 +126,29 @@ constexpr const char* VulkanColorSpaceString(const VkColorSpaceKHR colorSpace)
         case VK_COLOR_SPACE_DCI_P3_NONLINEAR_EXT: return "VK_COLOR_SPACE_DCI_P3_NONLINEAR_EXT";
         case VK_COLOR_SPACE_BT709_LINEAR_EXT: return "VK_COLOR_SPACE_BT709_LINEAR_EXT";
         default: return "UNKNOWN COLOR SPACE";
+    }
+}
+
+constexpr const char* VulkanQueueString(uint32_t queueFlag)
+{
+    switch (queueFlag) {
+        case VK_QUEUE_GRAPHICS_BIT: return "graphics";
+        case VK_QUEUE_COMPUTE_BIT: return "compute";
+        case VK_QUEUE_TRANSFER_BIT: return "transfer";
+        case VK_QUEUE_SPARSE_BINDING_BIT: return "sparse binding";
+        default: return "unknown";
+    }
+}
+
+constexpr const char* VulkanMemoryProperty(VkMemoryPropertyFlagBits memoryProperty)
+{
+    switch (memoryProperty) {
+        case VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT: return "VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT";
+        case VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT: return "VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT";
+        case VK_MEMORY_PROPERTY_HOST_COHERENT_BIT: return "VK_MEMORY_PROPERTY_HOST_COHERENT_BIT";
+        case VK_MEMORY_PROPERTY_HOST_CACHED_BIT: return "VK_MEMORY_PROPERTY_HOST_CACHED_BIT";
+        case VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT: return "VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT";
+        default: return "UNKNOWN MEMORY PROPERTY";
     }
 }
 

@@ -24,14 +24,18 @@ public:
     virtual ~VulkanRHI() = default;
     virtual void Init(void* window) override;
     virtual void Shutdown() override;
+    virtual void PrepareFrame() override;
+    virtual void SubmitFrame() override;
     virtual void Update() override;
 private:
+    virtual void WindowResize() override;
     void CreateInstance();
     void CreateCommandPool();
     void CreateSyncObjects();
     void CreateRenderPass();
     void CreateFramebuffers();
     void SetDescriptorResources();
+    void UpdateUniforms();
     void LoadObj(const std::string& path);
 private:
     Settings m_Settings;
@@ -39,8 +43,10 @@ private:
     VkInstance m_Instance;
     VkDebugUtilsMessengerEXT m_DebugUtilsMessenger;
     Ref<VulkanDevice> m_Device;
+    void* m_PlatformWindow;
     VulkanSwapchain m_Swapchain;
     uint32_t m_SwapchainImageCount;
+    uint32_t m_SwapchainImageIndex;
 
     VulkanCommandPool m_GfxCmdPool;
     VulkanCommandPool m_TsfCmdPool;

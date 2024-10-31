@@ -2,12 +2,13 @@
 
 #include <vulkan/vulkan.h>
 
-#include <fmt/core.h>
-#include <fmt/color.h>
-
+#include <chrono> // IWYU pragma: keep
 #include <string>
 #include <vector>
 #include <memory>
+
+#include <fmt/core.h>
+#include <fmt/color.h>
 
 namespace serious
 {
@@ -24,28 +25,35 @@ constexpr Ref<T> CreateRef(Args&&... args)
 std::string ReadFile(const std::string& filename);
 
 #define VKInfo(...) \
-fmt::print(fmt::fg(fmt::color::teal), __VA_ARGS__); \
-fmt::print("\n")
+    do { \
+        auto now = std::chrono::current_zone()->to_local(std::chrono::system_clock::now()); \
+        fmt::println("[{}] {}", std::format("{}", now), fmt::format(__VA_ARGS__)); \
+    } while (0)
 
 #define VKWarn(...) \
-fmt::print(fmt::fg(fmt::color::peru), __VA_ARGS__); \
-fmt::print("\n")
+    do { \
+        auto now = std::chrono::current_zone()->to_local(std::chrono::system_clock::now()); \
+        fmt::print(fmt::fg(fmt::color::peru), "[{}] {}\n", std::format("{}", now), fmt::format(__VA_ARGS__)); \
+    } while (0)
 
 #define VKError(...) \
-fmt::print(fmt::fg(fmt::color::red), __VA_ARGS__); \
-fmt::print("\n")
+    do { \
+        fmt::print(fmt::fg(fmt::color::red), "{} At {} {}\n", fmt::format(__VA_ARGS__), __FILE__, __LINE__); \
+    } while (0)
 
 #define VKFatal(...) \
-fmt::print(fmt::fg(fmt::color::red), __VA_ARGS__); \
-fmt::print(fmt::fg(fmt::color::red), " At {} {} {}\n", __FILE__, __LINE__, __FUNCTION__); \
-fmt::print("\n"); \
-std::terminate()
+    do { \
+        fmt::print(fmt::fg(fmt::color::red), "{} At {} {} \n", fmt::format(__VA_ARGS__), __FILE__, __LINE__); \
+        std::terminate(); \
+    } while (0)
 
 #if defined(_DEBUG)
 #define VK_CHECK_RESULT(result) \
-if (result != VK_SUCCESS) { \
-    VKError("Vulkan error : {:x}", (uint32_t)result); \
-}
+    do { \
+        if (result != VK_SUCCESS) { \
+            VKError("Vulkan error : {}", VulkanResultString(result)); \
+        } \
+    } while (0)
 #else
 #define VK_CHECK_RESULT(result) result
 #endif
@@ -149,6 +157,61 @@ constexpr const char* VulkanMemoryProperty(VkMemoryPropertyFlagBits memoryProper
         case VK_MEMORY_PROPERTY_HOST_CACHED_BIT: return "VK_MEMORY_PROPERTY_HOST_CACHED_BIT";
         case VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT: return "VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT";
         default: return "UNKNOWN MEMORY PROPERTY";
+    }
+}
+
+constexpr const char* VulkanResultString(VkResult result)
+{
+    switch (result) {
+        case VK_SUCCESS: return "VK_SUCCESS";
+        case VK_NOT_READY: return "VK_NOT_READY";
+        case VK_TIMEOUT: return "VK_TIMEOUT";
+        case VK_EVENT_SET: return "VK_EVENT_SET";
+        case VK_EVENT_RESET: return "VK_EVENT_RESET";
+        case VK_INCOMPLETE: return "VK_INCOMPLETE";
+        case VK_ERROR_OUT_OF_HOST_MEMORY: return "VK_ERROR_OUT_OF_HOST_MEMORY";
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY: return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+        case VK_ERROR_INITIALIZATION_FAILED: return "VK_ERROR_INITIALIZATION_FAILED";
+        case VK_ERROR_DEVICE_LOST: return "VK_ERROR_DEVICE_LOST";
+        case VK_ERROR_MEMORY_MAP_FAILED: return "VK_ERROR_MEMORY_MAP_FAILED";
+        case VK_ERROR_LAYER_NOT_PRESENT: return "VK_ERROR_LAYER_NOT_PRESENT";
+        case VK_ERROR_EXTENSION_NOT_PRESENT: return "VK_ERROR_EXTENSION_NOT_PRESENT";
+        case VK_ERROR_FEATURE_NOT_PRESENT: return "VK_ERROR_FEATURE_NOT_PRESENT";
+        case VK_ERROR_INCOMPATIBLE_DRIVER: return "VK_ERROR_INCOMPATIBLE_DRIVER";
+        case VK_ERROR_TOO_MANY_OBJECTS: return "VK_ERROR_TOO_MANY_OBJECTS";
+        case VK_ERROR_FORMAT_NOT_SUPPORTED: return "VK_ERROR_FORMAT_NOT_SUPPORTED";
+        case VK_ERROR_FRAGMENTED_POOL: return "VK_ERROR_FRAGMENTED_POOL";
+        case VK_ERROR_UNKNOWN: return "VK_ERROR_UNKNOWN";
+        case VK_ERROR_OUT_OF_POOL_MEMORY: return "VK_ERROR_OUT_OF_POOL_MEMORY";
+        case VK_ERROR_INVALID_EXTERNAL_HANDLE: return "VK_ERROR_INVALID_EXTERNAL_HANDLE";
+        case VK_ERROR_FRAGMENTATION: return "VK_ERROR_FRAGMENTATION";
+        case VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS: return "VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS";
+        case VK_PIPELINE_COMPILE_REQUIRED: return "VK_PIPELINE_COMPILE_REQUIRED";
+        case VK_ERROR_SURFACE_LOST_KHR: return "VK_ERROR_SURFACE_LOST_KHR";
+        case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
+        case VK_SUBOPTIMAL_KHR: return "VK_SUBOPTIMAL_KHR";
+        case VK_ERROR_OUT_OF_DATE_KHR: return "VK_ERROR_OUT_OF_DATE_KHR";
+        case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR: return "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR";
+        case VK_ERROR_VALIDATION_FAILED_EXT: return "VK_ERROR_VALIDATION_FAILED_EXT";
+        case VK_ERROR_INVALID_SHADER_NV: return "VK_ERROR_INVALID_SHADER_NV";
+        case VK_ERROR_IMAGE_USAGE_NOT_SUPPORTED_KHR: return "VK_ERROR_IMAGE_USAGE_NOT_SUPPORTED_KHR";
+        case VK_ERROR_VIDEO_PICTURE_LAYOUT_NOT_SUPPORTED_KHR: return "VK_ERROR_VIDEO_PICTURE_LAYOUT_NOT_SUPPORTED_KHR";
+        case VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR: return "VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR";
+        case VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR: return "VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR";
+        case VK_ERROR_VIDEO_PROFILE_CODEC_NOT_SUPPORTED_KHR: return "VK_ERROR_VIDEO_PROFILE_CODEC_NOT_SUPPORTED_KHR";
+        case VK_ERROR_VIDEO_STD_VERSION_NOT_SUPPORTED_KHR: return "VK_ERROR_VIDEO_STD_VERSION_NOT_SUPPORTED_KHR";
+        case VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT: return "VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT";
+        case VK_ERROR_NOT_PERMITTED_KHR: return "VK_ERROR_NOT_PERMITTED_KHR";
+        case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT: return "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT";
+        case VK_THREAD_IDLE_KHR: return "VK_THREAD_IDLE_KHR";
+        case VK_THREAD_DONE_KHR: return "VK_THREAD_DONE_KHR";
+        case VK_OPERATION_DEFERRED_KHR: return "VK_OPERATION_DEFERRED_KHR";
+        case VK_OPERATION_NOT_DEFERRED_KHR: return "VK_OPERATION_NOT_DEFERRED_KHR";
+        case VK_ERROR_INVALID_VIDEO_STD_PARAMETERS_KHR: return "VK_ERROR_INVALID_VIDEO_STD_PARAMETERS_KHR";
+        case VK_ERROR_COMPRESSION_EXHAUSTED_EXT: return "VK_ERROR_COMPRESSION_EXHAUSTED_EXT";
+        case VK_INCOMPATIBLE_SHADER_BINARY_EXT: return "VK_INCOMPATIBLE_SHADER_BINARY_EXT";
+        case VK_RESULT_MAX_ENUM: return "VK_RESULT_MAX_ENUM";
+        default: return "UNKNOWN_RESULT";
     }
 }
 

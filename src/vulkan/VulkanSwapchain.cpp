@@ -50,7 +50,6 @@ void VulkanSwapchain::Cleanup()
     }
     vkDestroySwapchainKHR(device, m_Swapchain, nullptr);
     
-    m_Surface = VK_NULL_HANDLE;
     m_Swapchain = VK_NULL_HANDLE;
 }
 
@@ -63,6 +62,9 @@ void VulkanSwapchain::Create(uint32_t* width, uint32_t* height, bool vsync)
     VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_Gpu, m_Surface, &surfaceCaps));
     /// See https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkSurfaceCapabilitiesKHR.html
     /// Special value 0xFFFFFFFF means the extent size is determined by targeting surface
+    if (surfaceCaps.currentExtent.width == 0 || surfaceCaps.currentExtent.height == 0) {
+        return;
+    }
     if (surfaceCaps.currentExtent.width == (uint32_t)-1) {
         m_Extent.width = *width;
         m_Extent.height = *height;
@@ -167,7 +169,7 @@ void VulkanSwapchain::Create(uint32_t* width, uint32_t* height, bool vsync)
     }
 }
 
-void VulkanSwapchain::Present(VkSemaphore* renderCompleteSemaphore, uint32_t imageIndex)
+VkResult VulkanSwapchain::Present(VkSemaphore* renderCompleteSemaphore, uint32_t imageIndex)
 {
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -176,7 +178,7 @@ void VulkanSwapchain::Present(VkSemaphore* renderCompleteSemaphore, uint32_t ima
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = renderCompleteSemaphore;
-    VK_CHECK_RESULT(vkQueuePresentKHR(m_Device->GetPresentQueue()->GetHandle(), &presentInfo));
+    return vkQueuePresentKHR(m_Device->GetPresentQueue()->GetHandle(), &presentInfo);
 }
 
 VkResult VulkanSwapchain::AcquireNextImage(VkSemaphore presentCompleteSemaphore, uint32_t* imageIndex)

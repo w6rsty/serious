@@ -14,5 +14,5 @@ void main() {
     // vec3 lightDir = normalize(lightPos - vNormal);
     // float diff = max(dot(normal, lightDir), 0.0);
     vec3 diffuse = texCoolor;
-    outColor = vec4(pow(diffuse, vec3(1.0 / 2.2)), 1.0);
+    outColor = vec4(pow(diffuse, vec3(1.0)), 1.0);
 }

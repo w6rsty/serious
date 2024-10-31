@@ -2,9 +2,9 @@
 
 #include "serious/vulkan/VulkanDevice.hpp"
 
-#include <vulkan/vulkan.h>
-
 #include <vector>
+
+#include <vulkan/vulkan.h>
 
 namespace serious
 {
@@ -19,7 +19,7 @@ public:
     void Create(uint32_t* width, uint32_t* height, bool vsync);  
     // Release resources
     void Cleanup();
-    void Present(VkSemaphore* renderCompleteSemaphore, uint32_t imageIndex);
+    VkResult Present(VkSemaphore* renderCompleteSemaphore, uint32_t imageIndex);
     VkResult AcquireNextImage(VkSemaphore presentCompleteSemaphore, uint32_t* imageIndex);
 
     inline VkExtent2D         GetExtent() const { return m_Extent; }

@@ -49,7 +49,7 @@ VulkanDevice::VulkanDevice(VkInstance instance)
     for (uint32_t i = 0; i < m_GpuMemoryProps.memoryTypeCount; ++i) {
         if (m_GpuMemoryProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
             m_DeviceLocalMemorySupport = true;
-            VKInfo("Device local memory supported");
+            VKInfo("-- Device local memory supported");
             break;
         }
     }
@@ -62,7 +62,7 @@ VulkanDevice::VulkanDevice(VkInstance instance)
         VK_KHR_SWAPCHAIN_EXTENSION_NAME  
     };
     if (!validateExtension(deviceExtensions, supportedDeviceExtensions)) {
-        VKFatal("required device extensions not found");
+        VKFatal("Required device extensions not found");
     }
 
     /// https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkQueueFamilyProperties.html
@@ -71,8 +71,8 @@ VulkanDevice::VulkanDevice(VkInstance instance)
     vkGetPhysicalDeviceQueueFamilyProperties(m_Gpu, &queueFamilyCount, nullptr);
     std::vector<VkQueueFamilyProperties> queueFamilyProperties(queueFamilyCount);
     vkGetPhysicalDeviceQueueFamilyProperties(m_Gpu, &queueFamilyCount, queueFamilyProperties.data());
-    VKInfo("Max anisotropy: {}", m_GpuProps.limits.maxSamplerAnisotropy);
-    VKInfo("Found {} available queue(s)", queueFamilyCount);
+    VKInfo("-- Max anisotropy: {}", m_GpuProps.limits.maxSamplerAnisotropy);
+    VKInfo("-- Found {} available queue(s)", queueFamilyCount);
     
     /// Queues create infos(Reference from Unreal Engine VulkanRHI)
     std::vector<VkDeviceQueueCreateInfo> queueFamilyInfos;
@@ -108,7 +108,7 @@ VulkanDevice::VulkanDevice(VkInstance instance)
             dispatchedQueues |= VK_QUEUE_TRANSFER_BIT;
         }
         if (!isValidQueue) {
-            VKWarn("Skipped queue {}({})", familyIndex, currProps.queueCount);
+            VKInfo("Skipped queue {}({})", familyIndex, currProps.queueCount);
             continue;
         }
 
@@ -138,7 +138,7 @@ VulkanDevice::VulkanDevice(VkInstance instance)
     }
 
     VkPhysicalDeviceFeatures deviceFeatures = {};
-    deviceFeatures.samplerAnisotropy = VK_TRUE;
+    deviceFeatures.samplerAnisotropy = VK_TRUE; // enable anisotropy manually
 
     VkDeviceCreateInfo deviceInfo = {};
     deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;

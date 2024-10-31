@@ -8,15 +8,14 @@ namespace serious
 {
 
 VulkanPipeline::VulkanPipeline(
-        VulkanDevice* device,
-        const std::vector<VulkanShaderModule>& shaderModules,
-        VkRenderPass renderPass,
-        VulkanSwapchain& swapchain)
+    VulkanDevice* device,
+    const std::vector<VulkanShaderModule>& shaderModules,
+    VkRenderPass renderPass,
+    VulkanSwapchain& swapchain)
     : m_Pipeline(VK_NULL_HANDLE)
     , m_Device(device)
     , m_PipelineLayout(VK_NULL_HANDLE)
 {
-    // Pipeline Creation
     auto vtxBindingDescriptions = Vertex::GetBindingDescription();
     auto vtxAttributeDescriptions = Vertex::GetAttributeDescriptions();
 
@@ -119,42 +118,9 @@ VulkanPipeline::~VulkanPipeline()
 
 void VulkanPipeline::Destroy()
 {
-    m_Device->GetGraphicsQueue()->WaitIdle();
-    m_Device->GetPresentQueue()->WaitIdle();
-    m_Device->GetTransferQueue()->WaitIdle();
-
     VkDevice deviceHandle = m_Device->GetHandle();
-
     vkDestroyPipelineLayout(deviceHandle, m_PipelineLayout, nullptr);
     vkDestroyPipeline(deviceHandle, m_Pipeline, nullptr);
 }
-
-// void VulkanPipeline::AllocateDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets)
-// {
-//     std::vector<VkDescriptorSetLayout> layouts(3, m_DescriptorSetLayout);
-
-//     VkDescriptorSetAllocateInfo allocInfo {};
-//     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-//     allocInfo.descriptorPool = m_DescriptorPool;
-//     allocInfo.descriptorSetCount = 3;
-//     allocInfo.pSetLayouts = layouts.data();
-//     VK_CHECK_RESULT(vkAllocateDescriptorSets(m_Device->GetHandle(), &allocInfo, descriptorSets.data()));
-// }
-
-// void VulkanPipeline::CreateDescriptorPool()
-// {
-//     std::array<VkDescriptorPoolSize, 2> poolSizes {};
-//     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-//     poolSizes[0].descriptorCount = 3;
-//     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-//     poolSizes[1].descriptorCount = 3;
-    
-//     VkDescriptorPoolCreateInfo poolInfo {};
-//     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-//     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-//     poolInfo.pPoolSizes = poolSizes.data();
-//     poolInfo.maxSets = 3;
-//     VK_CHECK_RESULT(vkCreateDescriptorPool(m_Device->GetHandle(), &poolInfo, nullptr, &m_DescriptorPool));
-// }
     
 }

@@ -18,7 +18,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[])
 
     *appstate = new AppState;
     AppState& state = *static_cast<AppState*>(*appstate);
-    SDL_WindowFlags flags = SDL_WINDOW_VULKAN;
+    SDL_WindowFlags flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
     state.window = SDL_CreateWindow("serious", state.settings.width, state.settings.height, flags);
     if (!state.window) {
         SDL_Log("failed to create window");

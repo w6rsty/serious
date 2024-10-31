@@ -3,6 +3,7 @@
 
 #include <chrono>
 
+#include <SDL3/SDL_video.h>
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 #define GLM_FORCE_RADIANS
@@ -59,8 +60,10 @@ VulkanRHI::VulkanRHI(const Settings& settings)
     , m_Instance(VK_NULL_HANDLE)
     , m_DebugUtilsMessenger(VK_NULL_HANDLE)
     , m_Device(nullptr)
+    , m_PlatformWindow(nullptr)
     , m_Swapchain({})
     , m_SwapchainImageCount(0)
+    , m_SwapchainImageIndex(0)
     , m_GfxCmdPool({})
     , m_TsfCmdPool({})
     , m_GfxCmdBufs({})
@@ -93,6 +96,7 @@ void VulkanRHI::Init(void* window)
     // Create swapchain
     m_Swapchain.SetContext(m_Instance, m_Device.get());
     m_Swapchain.InitSurface(window);
+    m_PlatformWindow = window;
     m_Swapchain.Create(&m_Settings.height, &m_Settings.height, m_Settings.vsync);
     m_SwapchainImageCount = m_Swapchain.GetImageCount();
 
@@ -157,31 +161,71 @@ void VulkanRHI::Shutdown()
     vkDestroyInstance(m_Instance, nullptr);
 }
 
+void VulkanRHI::WindowResize()
+{
+    m_Device->WaitIdle();
+    int width = 0, height = 0;
+    SDL_GetWindowSizeInPixels(static_cast<SDL_Window*>(m_PlatformWindow), &width, &height);
+    m_Settings.width = static_cast<uint32_t>(width);
+    m_Settings.height = static_cast<uint32_t>(height);
+    m_Swapchain.Create(&m_Settings.width, &m_Settings.height, m_Settings.vsync);
+
+    m_Device->DestroyTextureImage(m_DepthImage);
+    auto gfxCmd = m_GfxCmdPool.Allocate();
+    m_Device->CreateDepthImage(m_DepthImage, m_Swapchain.GetExtent(), gfxCmd);
+    m_GfxCmdPool.Free(gfxCmd);
+
+    for (VkFramebuffer& framebuffer : m_Framebuffers) {
+        vkDestroyFramebuffer(m_Device->GetHandle(), framebuffer, nullptr);
+    }
+    CreateFramebuffers();
+}
+
+void VulkanRHI::PrepareFrame()
+{
+    VkResult result = m_Swapchain.AcquireNextImage(m_ImageAvailableSems[m_CurrentFrame], &m_SwapchainImageIndex);
+	if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
+		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+			WindowResize();
+		}
+		return;
+	}	
+	else {
+		VK_CHECK_RESULT(result);
+	}
+}
+
+void VulkanRHI::SubmitFrame()
+{
+    VkResult result = m_Swapchain.Present(&m_RenderFinishedSems[m_CurrentFrame], m_SwapchainImageIndex);
+	if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
+		WindowResize();
+		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+			return;
+		}
+	}
+	else {
+		VK_CHECK_RESULT(result);
+	}
+    m_Device->GetPresentQueue()->WaitIdle();
+}
+
 void VulkanRHI::Update()
 {
-    static auto startTime = std::chrono::high_resolution_clock::now();
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-    UniformBufferObject ubo = {};
-    ubo.model = glm::rotate(glm::mat4(1.0f), time, glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.view = glm::lookAt(glm::vec3(1.5f, 1.5f, 1.5f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.proj = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 10.0f);
-    ubo.proj[1][1] *= -1;
-    memcpy(m_UniformBufferMapped[m_CurrentFrame], &ubo, sizeof(UniformBufferObject));
+    UpdateUniforms();
 
     m_Fences[m_CurrentFrame].WaitAndReset();
 
-    uint32_t index;
-    m_Swapchain.AcquireNextImage(m_ImageAvailableSems[m_CurrentFrame], &index);
-    auto gfxCmd = m_GfxCmdBufs[index];
+    PrepareFrame();
+
+    auto gfxCmd = m_GfxCmdBufs[m_CurrentFrame];
     
     gfxCmd.BeginSingle();
 
     VkRenderPassBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     beginInfo.renderPass = m_RenderPass;
-    beginInfo.framebuffer = m_Framebuffers[index];
+    beginInfo.framebuffer = m_Framebuffers[m_SwapchainImageIndex];
     beginInfo.renderArea.offset = {0, 0};
     beginInfo.renderArea.extent = m_Swapchain.GetExtent();
     beginInfo.clearValueCount = 2;
@@ -191,7 +235,7 @@ void VulkanRHI::Update()
     gfxCmd.BindGraphicsPipeline(m_Pipeline->GetHandle());
     gfxCmd.BindVertexBuffer(m_VertexBuffer.buffer, 0);
     gfxCmd.BindIndexBuffer(m_IndexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-    gfxCmd.BindDescriptorSet(m_Pipeline->GetPipelineLayout(), m_DescriptorSets[index]);
+    gfxCmd.BindDescriptorSet(m_Pipeline->GetPipelineLayout(), m_DescriptorSets[m_SwapchainImageIndex]);
     gfxCmd.DrawIndexed(m_Indices.size(), 1, 0, 0, 0);
     gfxCmd.EndRenderPass();
 
@@ -212,8 +256,7 @@ void VulkanRHI::Update()
 
     m_Device->GetGraphicsQueue()->Submit(submitInfo, m_Fences[m_CurrentFrame].GetHandle());
     
-    // Present queue submit
-    m_Swapchain.Present(&m_RenderFinishedSems[m_CurrentFrame], index);
+    SubmitFrame();
 
     m_CurrentFrame = (m_CurrentFrame + 1) % m_SwapchainImageCount;
 }
@@ -486,6 +529,20 @@ void VulkanRHI::SetDescriptorResources()
             nullptr
         );
     }
+}
+
+void VulkanRHI::UpdateUniforms()
+{
+    static auto startTime = std::chrono::high_resolution_clock::now();
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+    UniformBufferObject ubo = {};
+    ubo.model = glm::rotate(glm::mat4(1.0f), time, glm::vec3(0.0f, 0.0f, 1.0f));
+    ubo.view = glm::lookAt(glm::vec3(1.5f, 1.5f, 1.5f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    ubo.proj = glm::perspective(glm::radians(45.0f), 2.0f / 1.0f, 0.1f, 10.0f);
+    ubo.proj[1][1] *= -1;
+    memcpy(m_UniformBufferMapped[m_CurrentFrame], &ubo, sizeof(UniformBufferObject));
 }
 
 void VulkanRHI::LoadObj(const std::string& path)

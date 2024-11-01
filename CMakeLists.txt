@@ -30,19 +30,23 @@ target_compile_definitions(serious PUBLIC
 target_sources(serious PRIVATE ${TRACY_ROOT}/TracyClient.cpp)
 target_include_directories(serious PRIVATE ${TRACY_ROOT}/tracy)
 
-target_compile_options(serious PRIVATE
-    -Wall                   # 启用所有常见的警告
-    -Wextra                 # 启用额外的警告
-    -Wpedantic              # 启用对标准的严格检查
-    # -Werror                 # 将所有警告视为错误
-    -Wshadow                # 对变量隐藏发出警告
-    # -Wconversion            # 类型转换时可能丢失信息的警告
-    -Wsign-conversion       # 有符号与无符号转换的警告
-    -Wunreachable-code      # 无法到达的代码
-    # -Wold-style-cast        # 禁用旧的 C 风格强制转换
-    -Woverloaded-virtual    # 虚函数被重载但基类没有虚函数的警告
-    -Wnull-dereference      # 对空指针的解引用进行警告
-    -Wunused                # 警告未使用的变量
-)
+if (MSVC)
+    #
+else()
+    target_compile_options(serious PRIVATE
+        -Wall                   # 启用所有常见的警告
+        -Wextra                 # 启用额外的警告
+        -Wpedantic              # 启用对标准的严格检查
+        # -Werror                 # 将所有警告视为错误
+        -Wshadow                # 对变量隐藏发出警告
+        # -Wconversion            # 类型转换时可能丢失信息的警告
+        -Wsign-conversion       # 有符号与无符号转换的警告
+        -Wunreachable-code      # 无法到达的代码
+        # -Wold-style-cast        # 禁用旧的 C 风格强制转换
+        -Woverloaded-virtual    # 虚函数被重载但基类没有虚函数的警告
+        -Wnull-dereference      # 对空指针的解引用进行警告
+        -Wunused                # 警告未使用的变量
+    )
+endif()
 
 add_subdirectory(sandbox)

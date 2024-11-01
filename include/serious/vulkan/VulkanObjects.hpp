@@ -1,9 +1,17 @@
 #pragma once
 #include "serious/VulkanUtils.hpp"
+
 #include <vulkan/vulkan.h>
+#include <glm/glm.hpp>
 
 namespace serious
 {
+
+struct UniformBufferObject {
+    glm::mat4 model;
+    glm::mat4 view;
+    glm::mat4 proj;
+};
 
 /**
  * @brief VkFence wrapper class
@@ -13,6 +21,7 @@ namespace serious
 class VulkanFence final
 {
 public:
+    VulkanFence() = default;
     VulkanFence(VkDevice device, VkFenceCreateFlags flags = 0)
     : m_Fence(VK_NULL_HANDLE)
     , m_Device(device)
@@ -39,8 +48,9 @@ private:
  */
 struct VulkanShaderModule
 {
-    VkShaderModule handle;
     VkShaderStageFlagBits stage;
+    VkShaderModule handle;
+    std::string_view entry;
 };
 
 /**

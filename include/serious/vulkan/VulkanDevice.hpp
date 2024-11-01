@@ -40,7 +40,7 @@ public:
     void SetPresentQueue(VkSurfaceKHR surface);
     void WaitIdle();
 
-    VulkanShaderModule CreateShaderModule(const std::string& file, VkShaderStageFlagBits flag);
+    VulkanShaderModule CreateShaderModule(std::string_view file, VkShaderStageFlagBits flag, std::string_view entry);
     VulkanFence        CreateFence(VkFenceCreateFlags flags = 0);
     VkSemaphore        CreateSemaphore();
     VulkanImage        CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling imageTiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
@@ -88,6 +88,7 @@ private:
     VkPhysicalDeviceProperties m_GpuProps;
     VkPhysicalDeviceMemoryProperties m_GpuMemoryProps;
     bool m_DeviceLocalMemorySupport;
+    VulkanFence m_OperationFence;
     
     Ref<VulkanQueue> m_GraphicsQueue;
     Ref<VulkanQueue> m_ComputeQueue;

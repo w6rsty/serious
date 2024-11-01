@@ -9,7 +9,7 @@ namespace serious
 
 VulkanPipeline::VulkanPipeline(
     VulkanDevice* device,
-    const std::vector<VulkanShaderModule>& shaderModules,
+    const std::vector<VulkanShaderModule>& shaders,
     VkRenderPass renderPass,
     VulkanSwapchain& swapchain)
     : m_Pipeline(VK_NULL_HANDLE)
@@ -72,13 +72,14 @@ VulkanPipeline::VulkanPipeline(
     colorBlendState.pAttachments = &colorBlendAttachment;
     colorBlendState.logicOpEnable = VK_FALSE;
 
-    std::vector<VkPipelineShaderStageCreateInfo> shaderStageInfos(shaderModules.size());
+    std::vector<VkPipelineShaderStageCreateInfo> shaderStageInfos(shaders.size());
     for (size_t i = 0; i <  shaderStageInfos.size(); ++i) {
+        const VulkanShaderModule& shaderModule = shaders[i];
         VkPipelineShaderStageCreateInfo& shaderStageInfo = shaderStageInfos[i];
         shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        shaderStageInfo.module = shaderModules[i].handle;
-        shaderStageInfo.stage = shaderModules[i].stage;
-        shaderStageInfo.pName = "main";
+        shaderStageInfo.module = shaderModule.handle;
+        shaderStageInfo.stage = shaderModule.stage;
+        shaderStageInfo.pName = shaderModule.entry.data();
     }
 
     VkPipelineDepthStencilStateCreateInfo depthStencilState {};
@@ -96,6 +97,16 @@ VulkanPipeline::VulkanPipeline(
     pipelineLayoutInfo.pSetLayouts = &descriptorsetLayout;
     VK_CHECK_RESULT(vkCreatePipelineLayout(m_Device->GetHandle(), &pipelineLayoutInfo, nullptr, &m_PipelineLayout));
 
+    std::vector<VkDynamicState> dynamicStates = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR,
+    };
+
+    VkPipelineDynamicStateCreateInfo dynamicState = {};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+    dynamicState.pDynamicStates = dynamicStates.data();
+
     VkGraphicsPipelineCreateInfo pipelineInfo {};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineInfo.pVertexInputState = &vtxInputState;
@@ -109,6 +120,7 @@ VulkanPipeline::VulkanPipeline(
     pipelineInfo.pDepthStencilState = &depthStencilState;
     pipelineInfo.layout = m_PipelineLayout;
     pipelineInfo.renderPass = renderPass;
+    pipelineInfo.pDynamicState = &dynamicState;
     VK_CHECK_RESULT(vkCreateGraphicsPipelines(m_Device->GetHandle(), nullptr, 1, &pipelineInfo, nullptr, &m_Pipeline));
 }
 

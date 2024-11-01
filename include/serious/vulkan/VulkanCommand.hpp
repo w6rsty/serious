@@ -33,6 +33,9 @@ public:
     void PipelineImageBarrier(VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, const VkImageMemoryBarrier* imageMemory);
     void SubmitOnceTo(VulkanQueue& queue, VkFence fence = VK_NULL_HANDLE);
 
+    void SetViewport(const VkViewport& viewport);
+    void SetScissor(const VkRect2D& scissor);
+
     inline VkCommandBuffer GetHandle() const { return m_CmdBuf; }
 private:
     VkCommandBuffer m_CmdBuf;

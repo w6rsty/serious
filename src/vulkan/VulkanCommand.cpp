@@ -142,5 +142,15 @@ void VulkanCommandBuffer::SubmitOnceTo(VulkanQueue& queue, VkFence fence)
     queue.WaitIdle();
 }
 
+void VulkanCommandBuffer::SetViewport(const VkViewport& viewport)
+{
+    vkCmdSetViewport(m_CmdBuf, 0, 1, &viewport);
+}
+
+void VulkanCommandBuffer::SetScissor(const VkRect2D& scissor)
+{
+    vkCmdSetScissor(m_CmdBuf, 0, 1, &scissor);
+}
+
 
 }

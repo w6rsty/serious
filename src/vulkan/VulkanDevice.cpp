@@ -2,6 +2,7 @@
 #include "serious/vulkan/VulkanCommand.hpp"
 
 #include <cassert>
+#include <string_view>
 
 #include <stb_image.h>
 
@@ -162,6 +163,8 @@ VulkanDevice::VulkanDevice(VkInstance instance)
     }
     m_TransferQueue = CreateRef<VulkanQueue>(this, transferQueueFamilyIndex);
     VKInfo("Using queue {} for transfer", transferQueueFamilyIndex);
+
+    m_OperationFence = VulkanFence(m_Device);
 }
 
 VulkanDevice::~VulkanDevice()
@@ -170,6 +173,7 @@ VulkanDevice::~VulkanDevice()
 
 void VulkanDevice::Destroy()
 {
+    DestroyFence(m_OperationFence);
     vkDestroyDevice(m_Device, nullptr);
 }
 
@@ -197,11 +201,12 @@ void VulkanDevice::WaitIdle()
     VK_CHECK_RESULT(vkDeviceWaitIdle(m_Device));
 }
 
-VulkanShaderModule VulkanDevice::CreateShaderModule(const std::string& path, VkShaderStageFlagBits flag)
+VulkanShaderModule VulkanDevice::CreateShaderModule(std::string_view path, VkShaderStageFlagBits flag, std::string_view entry)
 {
     VulkanShaderModule shaderModule {};
     shaderModule.stage = flag;
-    std::string source = ReadFile(path);
+    shaderModule.entry = entry;
+    std::string source = ReadFile(std::string(path));
     VkShaderModuleCreateInfo shaderModuleInfo = {};
     shaderModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     shaderModuleInfo.codeSize = source.size();
@@ -379,10 +384,8 @@ void VulkanDevice::CopyBuffer(
     tsfCmd.CopyBuffer(src, dst, size, offset);
     tsfCmd.End();
     
-    VulkanFence copyFence = CreateFence();
-    tsfCmd.SubmitOnceTo(*m_TransferQueue, copyFence.m_Fence);
-    copyFence.Wait();
-    DestroyFence(copyFence);
+    tsfCmd.SubmitOnceTo(*m_TransferQueue, m_OperationFence.m_Fence);
+    m_OperationFence.WaitAndReset();
 }
 
 void VulkanDevice::CreateDeviceBuffer(
@@ -465,10 +468,8 @@ void VulkanDevice::TransitionImageLayout(
     cmd.PipelineImageBarrier(srcStage, dstStage, &barrier);
     cmd.End();
 
-    VulkanFence transitionFence = CreateFence();
-    cmd.SubmitOnceTo(*m_GraphicsQueue, transitionFence.m_Fence);
-    transitionFence.Wait();
-    DestroyFence(transitionFence);
+    cmd.SubmitOnceTo(*m_GraphicsQueue, m_OperationFence.m_Fence);
+    m_OperationFence.WaitAndReset();
 }
 
 void VulkanDevice::CreateTextureImage(
@@ -517,11 +518,9 @@ void VulkanDevice::CreateTextureImage(
     region.imageExtent = {texture.width, texture.height, 1};
     gfxCmd.CopyBufferToImage(stagingBuffer.buffer, texture.image.image, &region);
     gfxCmd.End();
-    VulkanFence copyFence = CreateFence();
-    gfxCmd.SubmitOnceTo(*m_TransferQueue, copyFence.m_Fence);
-    copyFence.Wait();
+    gfxCmd.SubmitOnceTo(*m_TransferQueue, m_OperationFence.m_Fence);
+    m_OperationFence.WaitAndReset();
     TransitionImageLayout(texture.image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, gfxCmd);
-
     DestroyBuffer(stagingBuffer);
 
     texture.imageView = CreateImageView(texture.image.image, format, VK_IMAGE_ASPECT_COLOR_BIT, mapping);

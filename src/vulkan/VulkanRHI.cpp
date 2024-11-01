@@ -1,7 +1,9 @@
 #include "serious/vulkan/VulkanRHI.hpp"
+#include "serious/RHI.hpp"
 #include "serious/vulkan/VulkanDevice.hpp"
 
 #include <chrono>
+#include <string>
 
 #include <SDL3/SDL_video.h>
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -82,7 +84,9 @@ VulkanRHI::VulkanRHI(const Settings& settings)
     , m_IndexBuffer({})
     , m_UniformBuffers({})
     , m_UniformBufferMapped({})
-    , m_Pipeline(nullptr)
+    , m_BoundPipline(nullptr)
+    , m_Viewport({})
+    , m_Scissor({})
     , m_Vertices({})
     , m_Indices({})
 {
@@ -99,6 +103,15 @@ void VulkanRHI::Init(void* window)
     m_PlatformWindow = window;
     m_Swapchain.Create(&m_Settings.height, &m_Settings.height, m_Settings.vsync);
     m_SwapchainImageCount = m_Swapchain.GetImageCount();
+    VkExtent2D extent = m_Swapchain.GetExtent();
+    m_Viewport.x = 0.0f;
+    m_Viewport.y = 0.0f;
+    m_Viewport.width = extent.width;
+    m_Viewport.height = extent.height;
+    m_Viewport.minDepth = 0.0f;
+    m_Viewport.maxDepth = 1.0f;
+    m_Scissor.offset = {0, 0};
+    m_Scissor.extent = extent;
 
     CreateCommandPool();
     CreateSyncObjects();
@@ -110,12 +123,7 @@ void VulkanRHI::Init(void* window)
 
     CreateRenderPass();
     CreateFramebuffers();
-    m_ShaderModules = {
-        m_Device->CreateShaderModule("shaders/vert.spv", VK_SHADER_STAGE_VERTEX_BIT),
-        m_Device->CreateShaderModule("shaders/frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT)
-    };
     SetDescriptorResources();
-    m_Pipeline = CreateRef<VulkanPipeline>(m_Device.get(), m_ShaderModules, m_RenderPass, m_Swapchain);
 }
 
 void VulkanRHI::Shutdown()
@@ -132,7 +140,6 @@ void VulkanRHI::Shutdown()
     m_Device->DestroyBuffer(m_VertexBuffer);
     m_Device->DestroyBuffer(m_IndexBuffer);
 
-    m_Pipeline->Destroy();
     for (VulkanShaderModule& shaderModule : m_ShaderModules) {
         m_Device->DestroyShaderModule(shaderModule);
     }
@@ -218,27 +225,32 @@ void VulkanRHI::Update()
 
     PrepareFrame();
 
-    auto gfxCmd = m_GfxCmdBufs[m_CurrentFrame];
-    
+    auto gfxCmd = m_GfxCmdBufs[m_CurrentFrame];    
     gfxCmd.BeginSingle();
+    {
+        VkExtent2D extent = m_Swapchain.GetExtent();
+        m_Viewport.width = static_cast<float>(extent.width);
+        m_Viewport.height = static_cast<float>(extent.height);
+        gfxCmd.SetViewport(m_Viewport);
+        m_Scissor.extent = extent;
+        gfxCmd.SetScissor(m_Scissor);
 
-    VkRenderPassBeginInfo beginInfo = {};
-    beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    beginInfo.renderPass = m_RenderPass;
-    beginInfo.framebuffer = m_Framebuffers[m_SwapchainImageIndex];
-    beginInfo.renderArea.offset = {0, 0};
-    beginInfo.renderArea.extent = m_Swapchain.GetExtent();
-    beginInfo.clearValueCount = 2;
-    beginInfo.pClearValues = m_ClearValues;
+        VkRenderPassBeginInfo beginInfo = {};
+        beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        beginInfo.renderPass = m_RenderPass;
+        beginInfo.framebuffer = m_Framebuffers[m_SwapchainImageIndex];
+        beginInfo.renderArea = m_Scissor;
+        beginInfo.clearValueCount = 2;
+        beginInfo.pClearValues = m_ClearValues;
 
-    gfxCmd.BeginRenderPass(beginInfo, VK_SUBPASS_CONTENTS_INLINE);
-    gfxCmd.BindGraphicsPipeline(m_Pipeline->GetHandle());
-    gfxCmd.BindVertexBuffer(m_VertexBuffer.buffer, 0);
-    gfxCmd.BindIndexBuffer(m_IndexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-    gfxCmd.BindDescriptorSet(m_Pipeline->GetPipelineLayout(), m_DescriptorSets[m_SwapchainImageIndex]);
-    gfxCmd.DrawIndexed(m_Indices.size(), 1, 0, 0, 0);
-    gfxCmd.EndRenderPass();
-
+        gfxCmd.BeginRenderPass(beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+        gfxCmd.BindGraphicsPipeline(m_BoundPipline->GetHandle());
+        gfxCmd.BindVertexBuffer(m_VertexBuffer.buffer, 0);
+        gfxCmd.BindIndexBuffer(m_IndexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+        gfxCmd.BindDescriptorSet(m_BoundPipline->GetPipelineLayout(), m_DescriptorSets[m_SwapchainImageIndex]);
+        gfxCmd.DrawIndexed(m_Indices.size(), 1, 0, 0, 0);
+        gfxCmd.EndRenderPass();
+    }
     gfxCmd.End();
 
     std::array cmds = {gfxCmd.GetHandle()};
@@ -259,6 +271,45 @@ void VulkanRHI::Update()
     SubmitFrame();
 
     m_CurrentFrame = (m_CurrentFrame + 1) % m_SwapchainImageCount;
+}
+
+SEShaderIdx VulkanRHI::CreateShader(SEShaderDescription description)
+{
+    VkShaderStageFlagBits stage;
+    switch (description.stage) {
+        case SEShaderStage::Vertex:
+            stage = VK_SHADER_STAGE_VERTEX_BIT;
+            break;
+        case SEShaderStage::Fragment:
+            stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+            break;
+        case SEShaderStage::Compute:
+            stage = VK_SHADER_STAGE_COMPUTE_BIT;
+            break;
+    }
+    auto shaderModule = m_Device->CreateShaderModule(std::string(description.file), stage, description.entry);
+    m_ShaderModules.push_back(shaderModule);
+    return m_ShaderModules.size() - 1;
+}
+
+SEPipeline* VulkanRHI::CreatePipeline(const std::vector<SEShaderIdx>& shaders)
+{
+    // std::vector<VulkanShader>
+    std::vector<VulkanShaderModule> shaderModules;
+    for (SEShaderIdx idx : shaders) {
+        shaderModules.push_back(m_ShaderModules[idx]);
+    }
+    return new VulkanPipeline(m_Device.get(), shaderModules, m_RenderPass, m_Swapchain);
+}
+
+void VulkanRHI::BindPipeline(SEPipeline* pipeline)
+{
+    m_BoundPipline = (VulkanPipeline*)pipeline;
+}
+
+void VulkanRHI::DestroyPipeline(SEPipeline* pipeline)
+{
+    ((VulkanPipeline*)pipeline)->Destroy();
 }
 
 void VulkanRHI::CreateInstance()
@@ -540,7 +591,7 @@ void VulkanRHI::UpdateUniforms()
     UniformBufferObject ubo = {};
     ubo.model = glm::rotate(glm::mat4(1.0f), time, glm::vec3(0.0f, 0.0f, 1.0f));
     ubo.view = glm::lookAt(glm::vec3(1.5f, 1.5f, 1.5f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.proj = glm::perspective(glm::radians(45.0f), 2.0f / 1.0f, 0.1f, 10.0f);
+    ubo.proj = glm::perspective(glm::radians(45.0f), (float)m_Settings.width / (float)m_Settings.height, 0.1f, 10.0f);
     ubo.proj[1][1] *= -1;
     memcpy(m_UniformBufferMapped[m_CurrentFrame], &ubo, sizeof(UniformBufferObject));
 }

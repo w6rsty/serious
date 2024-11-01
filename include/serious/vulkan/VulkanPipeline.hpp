@@ -1,5 +1,6 @@
 #pragma once
 
+#include "serious/RHI.hpp"
 #include "serious/vulkan/VulkanDevice.hpp"
 #include "serious/vulkan/VulkanSwapchain.hpp"
 
@@ -10,14 +11,13 @@
 namespace serious
 {
 
-class VulkanPipeline final
+class VulkanPipeline final : public SEPipeline
 {
 public:
-    VulkanPipeline(
-        VulkanDevice* device,
-        const std::vector<VulkanShaderModule>& shaderModules,
-        VkRenderPass renderPass,
-        VulkanSwapchain& swapchain);
+    VulkanPipeline(VulkanDevice* device,
+                   const std::vector<VulkanShaderModule>& shaders,
+                   VkRenderPass renderPass,
+                   VulkanSwapchain& swapchain);
     ~VulkanPipeline();
     void Destroy();
     

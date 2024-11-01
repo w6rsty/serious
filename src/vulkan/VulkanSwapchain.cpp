@@ -45,12 +45,13 @@ void VulkanSwapchain::Cleanup()
     for (VkImageView& imageView : m_ImageViews) {
         vkDestroyImageView(device, imageView, nullptr);
     }
+
+    vkDestroySwapchainKHR(device, m_Swapchain, nullptr);
+    m_Swapchain = VK_NULL_HANDLE;
+    
     if (m_Surface != VK_NULL_HANDLE) {
         vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
     }
-    vkDestroySwapchainKHR(device, m_Swapchain, nullptr);
-    
-    m_Swapchain = VK_NULL_HANDLE;
 }
 
 void VulkanSwapchain::Create(uint32_t* width, uint32_t* height, bool vsync)
@@ -74,7 +75,7 @@ void VulkanSwapchain::Create(uint32_t* width, uint32_t* height, bool vsync)
         *height = surfaceCaps.currentExtent.height;
     }
 
-        /// Surface present mode (prefer mailbox)
+    /// Surface present mode (prefer mailbox)
     uint32_t surfacePresentModeCount = 0;
     VK_CHECK_RESULT(vkGetPhysicalDeviceSurfacePresentModesKHR(m_Gpu, m_Surface, &surfacePresentModeCount, nullptr));
     std::vector<VkPresentModeKHR> surfacePresentModes(surfacePresentModeCount);

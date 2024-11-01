@@ -3,19 +3,13 @@
 #include "serious/RHI.hpp"
 #include "serious/vulkan/VulkanDevice.hpp"
 #include "serious/vulkan/VulkanSwapchain.hpp"
-#include "serious/vulkan/VulkanPipeline.hpp"
 #include "serious/vulkan/VulkanCommand.hpp"
+#include "serious/vulkan/VulkanPipeline.hpp"
 #include "serious/vulkan/Vertex.hpp"
 #include "serious/VulkanUtils.hpp"
 
 namespace serious
 {
-
-struct UniformBufferObject {
-    glm::mat4 model;
-    glm::mat4 view;
-    glm::mat4 proj;
-};
 
 class VulkanRHI final : public RHI
 {
@@ -27,6 +21,10 @@ public:
     virtual void PrepareFrame() override;
     virtual void SubmitFrame() override;
     virtual void Update() override;
+    virtual SEShaderIdx CreateShader(SEShaderDescription description) override;
+    virtual SEPipeline* CreatePipeline(const std::vector<SEShaderIdx>& shaders) override;
+    virtual void BindPipeline(SEPipeline* pipeline) override;
+    virtual void DestroyPipeline(SEPipeline* pipeline) override;
 private:
     virtual void WindowResize() override;
     void CreateInstance();
@@ -68,7 +66,9 @@ private:
     VulkanBuffer m_IndexBuffer;
     std::vector<VulkanBuffer> m_UniformBuffers;
     std::vector<void*> m_UniformBufferMapped;
-    Ref<VulkanPipeline> m_Pipeline;
+    VulkanPipeline* m_BoundPipline;
+    VkViewport m_Viewport;
+    VkRect2D m_Scissor;
     
     std::vector<Vertex> m_Vertices;
     std::vector<uint32_t> m_Indices;

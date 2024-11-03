@@ -1,16 +1,18 @@
-#include "serious/VulkanUtils.hpp"
+#pragma once
+#include "serious/io/log.hpp"
 
+#include <string>
 #include <fstream>
 
 namespace serious
 {
 
-std::string ReadFile(const std::string& filename)
+static std::string ReadFile(const std::string& filename)
 {
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
 
     if (!file.is_open()) {
-        VKWarn("failed to open file: {}", filename);
+        SEWarn("failed to open file: {}", filename);
         return "";
     }
 

@@ -1,4 +1,4 @@
-#include "serious/vulkan/VulkanCommand.hpp"
+#include "serious/graphics/vulkan/VulkanCommand.hpp"
 
 namespace serious
 {
@@ -13,7 +13,6 @@ VulkanCommandBuffer VulkanCommandPool::Allocate()
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandBufferCount = 1;
     VK_CHECK_RESULT(vkAllocateCommandBuffers(m_Device, &allocInfo, &cmdBuf.m_CmdBuf));
-
     return cmdBuf;
 }
 

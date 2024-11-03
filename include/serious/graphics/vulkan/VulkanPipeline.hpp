@@ -1,8 +1,6 @@
 #pragma once
-
-#include "serious/RHI.hpp"
-#include "serious/vulkan/VulkanDevice.hpp"
-#include "serious/vulkan/VulkanSwapchain.hpp"
+#include "serious/graphics/vulkan/VulkanDevice.hpp"
+#include "serious/graphics/vulkan/VulkanSwapchain.hpp"
 
 #include <vulkan/vulkan.h>
 
@@ -11,7 +9,7 @@
 namespace serious
 {
 
-class VulkanPipeline final : public SEPipeline
+class VulkanPipeline final
 {
 public:
     VulkanPipeline(VulkanDevice* device,

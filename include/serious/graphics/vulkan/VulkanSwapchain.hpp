@@ -1,10 +1,10 @@
 #pragma once
 
-#include "serious/vulkan/VulkanDevice.hpp"
-
-#include <vector>
+#include "serious/graphics/vulkan/VulkanDevice.hpp"
 
 #include <vulkan/vulkan.h>
+
+#include <vector>
 
 namespace serious
 {

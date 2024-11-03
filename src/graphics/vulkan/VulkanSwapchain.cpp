@@ -1,5 +1,5 @@
-#include "serious/vulkan/VulkanSwapchain.hpp"
-#include "serious/VulkanUtils.hpp"
+#include "serious/graphics/vulkan/VulkanSwapchain.hpp"
+#include "serious/io/log.hpp"
 
 #include <Tracy.hpp>
 #include <SDL3/SDL.h>
@@ -145,7 +145,7 @@ void VulkanSwapchain::Create(uint32_t* width, uint32_t* height, bool vsync)
     swapchainInfo.oldSwapchain = oldSwapchain;
     VK_CHECK_RESULT(vkCreateSwapchainKHR(device, &swapchainInfo, nullptr, &m_Swapchain));
 
-    VKInfo(
+    SEInfo(
         "Create swapchain {} | {} | {} | num images {}:{}x{}",
         VulkanPresentModeString(m_PresentMode),
         VulkanFormatString(m_ColorFormat),
@@ -184,6 +184,7 @@ VkResult VulkanSwapchain::Present(VkSemaphore* renderCompleteSemaphore, uint32_t
 
 VkResult VulkanSwapchain::AcquireNextImage(VkSemaphore presentCompleteSemaphore, uint32_t* imageIndex)
 {
+    ZoneScopedN("Acquire image");
     return vkAcquireNextImageKHR(m_Device->GetHandle(), m_Swapchain, UINT64_MAX, presentCompleteSemaphore, VK_NULL_HANDLE, imageIndex);
 }
 

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "serious/VulkanUtils.hpp"
-#include "serious/vulkan/VulkanObjects.hpp"
+#include "serious/Utils.hpp"
+#include "serious/graphics/vulkan/VulkanObjects.hpp"
 
 #include <vulkan/vulkan.h>
 
@@ -14,7 +14,14 @@ class VulkanCommandBuffer;
 class VulkanQueue final
 {
 public:
-    VulkanQueue(VulkanDevice* device, uint32_t familyIndex);
+    /**
+     * @brief Construct a new Vulkan Queue object
+     * 
+     * @param device 
+     * @param familyIndex 
+     * @param usage for debug purpose
+     */
+    VulkanQueue(VulkanDevice* device, uint32_t familyIndex, VulkanQueueUsage usage);
     ~VulkanQueue();
 
     void Submit(const VkSubmitInfo& submitInfo, VkFence fence = VK_NULL_HANDLE);

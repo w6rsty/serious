@@ -1,21 +1,25 @@
-#include "serious/vulkan/VulkanDevice.hpp"
-#include "serious/vulkan/VulkanCommand.hpp"
+#include "serious/graphics/vulkan/VulkanDevice.hpp"
+#include "serious/graphics/vulkan/VulkanCommand.hpp"
+#include "serious/graphics/vulkan/VulkanObjects.hpp"
+#include "serious/io/file.hpp"
+
+#include <stb_image.h>
+#include <Tracy.hpp>
 
 #include <cassert>
 #include <string_view>
 
-#include <stb_image.h>
-
 namespace serious
 {
 
-VulkanQueue::VulkanQueue(VulkanDevice* device, uint32_t familyIndex)
+VulkanQueue::VulkanQueue(VulkanDevice* device, uint32_t familyIndex, VulkanQueueUsage usage)
     : m_Queue(VK_NULL_HANDLE)
     , m_QueueIndex(0)
     , m_FamilyIndex(familyIndex)
     , m_Device(device)
 {
     vkGetDeviceQueue(m_Device->GetHandle(), m_FamilyIndex, m_QueueIndex, &m_Queue);
+    SETrace("Get device queue(0x{:x}): {} from family {} for {}", (size_t)m_Queue, m_QueueIndex, m_FamilyIndex, VulkanQueueUsageString(usage));
 }
 
 VulkanQueue::~VulkanQueue()
@@ -24,11 +28,13 @@ VulkanQueue::~VulkanQueue()
 
 void VulkanQueue::Submit(const VkSubmitInfo& submitInfo, VkFence fence)
 {
+    ZoneScopedN("Queue submit");
     VK_CHECK_RESULT(vkQueueSubmit(m_Queue, 1, &submitInfo, fence));
 }
 
 void VulkanQueue::WaitIdle()
 {
+    ZoneScopedN("Queue wait idle");
     VK_CHECK_RESULT(vkQueueWaitIdle(m_Queue));
 }
 
@@ -50,7 +56,7 @@ VulkanDevice::VulkanDevice(VkInstance instance)
     for (uint32_t i = 0; i < m_GpuMemoryProps.memoryTypeCount; ++i) {
         if (m_GpuMemoryProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
             m_DeviceLocalMemorySupport = true;
-            VKInfo("-- Device local memory supported");
+            SEInfo("-- Device local memory supported");
             break;
         }
     }
@@ -63,7 +69,7 @@ VulkanDevice::VulkanDevice(VkInstance instance)
         VK_KHR_SWAPCHAIN_EXTENSION_NAME  
     };
     if (!validateExtension(deviceExtensions, supportedDeviceExtensions)) {
-        VKFatal("Required device extensions not found");
+        SEFatal("Required device extensions not found");
     }
 
     /// https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkQueueFamilyProperties.html
@@ -72,8 +78,8 @@ VulkanDevice::VulkanDevice(VkInstance instance)
     vkGetPhysicalDeviceQueueFamilyProperties(m_Gpu, &queueFamilyCount, nullptr);
     std::vector<VkQueueFamilyProperties> queueFamilyProperties(queueFamilyCount);
     vkGetPhysicalDeviceQueueFamilyProperties(m_Gpu, &queueFamilyCount, queueFamilyProperties.data());
-    VKInfo("-- Max anisotropy: {}", m_GpuProps.limits.maxSamplerAnisotropy);
-    VKInfo("-- Found {} available queue(s)", queueFamilyCount);
+    SEInfo("-- Max anisotropy: {}", m_GpuProps.limits.maxSamplerAnisotropy);
+    SEInfo("Found {} available queue(s)", queueFamilyCount);
     
     /// Queues create infos(Reference from Unreal Engine VulkanRHI)
     std::vector<VkDeviceQueueCreateInfo> queueFamilyInfos;
@@ -109,7 +115,7 @@ VulkanDevice::VulkanDevice(VkInstance instance)
             dispatchedQueues |= VK_QUEUE_TRANSFER_BIT;
         }
         if (!isValidQueue) {
-            VKInfo("Skipped queue {}({})", familyIndex, currProps.queueCount);
+            SEInfo("Skipped queue {}({})", familyIndex, currProps.queueCount);
             continue;
         }
 
@@ -151,18 +157,15 @@ VulkanDevice::VulkanDevice(VkInstance instance)
     VK_CHECK_RESULT(vkCreateDevice(m_Gpu, &deviceInfo, nullptr, &m_Device));
 
     /// Create queues https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkGetDeviceQueue.html
-    m_GraphicsQueue = CreateRef<VulkanQueue>(this, graphicsQueueFamilyIndex);
-    VKInfo("Using queue {} for graphics", graphicsQueueFamilyIndex);    
+    m_GraphicsQueue = CreateRef<VulkanQueue>(this, graphicsQueueFamilyIndex, VulkanQueueUsage::Graphics);
     if (computeQueueFamilyIndex == -1) {
         computeQueueFamilyIndex = graphicsQueueFamilyIndex;
     }
-    m_ComputeQueue = CreateRef<VulkanQueue>(this, computeQueueFamilyIndex);
-    VKInfo("Using queue {} for compute", computeQueueFamilyIndex);
+    m_ComputeQueue = CreateRef<VulkanQueue>(this, computeQueueFamilyIndex, VulkanQueueUsage::Compute);
     if (transferQueueFamilyIndex == -1) {
         transferQueueFamilyIndex = computeQueueFamilyIndex;
     }
-    m_TransferQueue = CreateRef<VulkanQueue>(this, transferQueueFamilyIndex);
-    VKInfo("Using queue {} for transfer", transferQueueFamilyIndex);
+    m_TransferQueue = CreateRef<VulkanQueue>(this, transferQueueFamilyIndex, VulkanQueueUsage::Transfer);
 
     m_OperationFence = VulkanFence(m_Device);
 }
@@ -186,14 +189,14 @@ void VulkanDevice::SetPresentQueue(VkSurfaceKHR surface)
         return result == VK_TRUE;
     };
     if (!isSupportPresent(m_Gpu, m_GraphicsQueue)) {
-        VKFatal("failed to find a queue family that supports presentation");
+        SEFatal("Failed to find a queue family that supports presentation");
     }
     if (isSupportPresent(m_Gpu, m_ComputeQueue)) {
         m_PresentQueue = m_ComputeQueue;
     } else {
         m_PresentQueue = m_GraphicsQueue;
     }
-    VKInfo("Using queue {} for presentation", m_PresentQueue->GetFamilyIndex());
+    SETrace("Using queue(0x{:x}): from family {} for {}", (size_t)m_PresentQueue->GetHandle(), m_PresentQueue->GetFamilyIndex(), VulkanQueueUsageString(VulkanQueueUsage::Present));
 }
 
 void VulkanDevice::WaitIdle()
@@ -405,7 +408,7 @@ void VulkanDevice::CreateDeviceBuffer(
         CopyBuffer(stagingBuffer.buffer, buffer.buffer, size, 0, tsfCmd);
         DestroyBuffer(stagingBuffer);
     } else {
-        VKWarn("Device local memory not supported, using host visible memory");
+        SEWarn("Device local memory not supported, using host visible memory");
         CreateBuffer(buffer, size, usage, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     }
 }
@@ -463,7 +466,7 @@ void VulkanDevice::TransitionImageLayout(
         srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
         dstStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     } else {
-        VKError("Unsupported layout transition");
+        SEError("Unsupported layout transition");
     }
     cmd.PipelineImageBarrier(srcStage, dstStage, &barrier);
     cmd.End();
@@ -482,7 +485,7 @@ void VulkanDevice::CreateTextureImage(
     int width, height, channels;
     stbi_uc* pixels = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     if (!pixels) {
-        VKWarn("Failed to load image {}", path);
+        SEWarn("Failed to load image {}", path);
         width = 1;
         height = 1;
         static constexpr uint32_t errorColor = 0xFF00FFFF;
@@ -518,7 +521,7 @@ void VulkanDevice::CreateTextureImage(
     region.imageExtent = {texture.width, texture.height, 1};
     gfxCmd.CopyBufferToImage(stagingBuffer.buffer, texture.image.image, &region);
     gfxCmd.End();
-    gfxCmd.SubmitOnceTo(*m_TransferQueue, m_OperationFence.m_Fence);
+    gfxCmd.SubmitOnceTo(*m_GraphicsQueue, m_OperationFence.m_Fence);
     m_OperationFence.WaitAndReset();
     TransitionImageLayout(texture.image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, gfxCmd);
     DestroyBuffer(stagingBuffer);
@@ -621,9 +624,9 @@ void VulkanDevice::SelectGpu(VkInstance instance)
     uint32_t physicalDeviceCount = 0;
     VK_CHECK_RESULT(vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, nullptr));
     if (physicalDeviceCount == 0) {
-        VKFatal("No device supporting Vulkan found");
+        SEFatal("No device supporting Vulkan found");
     } else {
-        VKInfo("Found {} physical device(s)", physicalDeviceCount);
+        SEInfo("Found {} physical device(s)", physicalDeviceCount);
     }
     std::vector<VkPhysicalDevice> physicalDevices(physicalDeviceCount);
     VK_CHECK_RESULT(vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, physicalDevices.data()));
@@ -650,7 +653,7 @@ void VulkanDevice::SelectGpu(VkInstance instance)
 
     m_Gpu = bestGpu;
     m_GpuProps = bestGpuProps;
-    VKInfo("Using device: {} score: {}", m_GpuProps.deviceName, highestScore);
+    SETrace("Using gpu(0x{:x}): {} score: {}", (size_t)m_Gpu, m_GpuProps.deviceName, highestScore);
 }
 
 uint32_t VulkanDevice::FindMemoryTypeIdx(uint32_t typeFilter, VkMemoryPropertyFlags propertyFlags)
@@ -660,7 +663,7 @@ uint32_t VulkanDevice::FindMemoryTypeIdx(uint32_t typeFilter, VkMemoryPropertyFl
             return i;
         }
     }
-    VKWarn("Failed to find asked memory type");
+    SEWarn("Failed to find asked memory type");
     return UINT32_MAX;   
 }
 

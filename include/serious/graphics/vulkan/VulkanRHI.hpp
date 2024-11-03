@@ -1,12 +1,12 @@
 #pragma once
 
-#include "serious/RHI.hpp"
-#include "serious/vulkan/VulkanDevice.hpp"
-#include "serious/vulkan/VulkanSwapchain.hpp"
-#include "serious/vulkan/VulkanCommand.hpp"
-#include "serious/vulkan/VulkanPipeline.hpp"
-#include "serious/vulkan/Vertex.hpp"
-#include "serious/VulkanUtils.hpp"
+#include "serious/graphics/RHI.hpp"
+#include "serious/graphics/vulkan/VulkanDevice.hpp"
+#include "serious/graphics/vulkan/VulkanSwapchain.hpp"
+#include "serious/graphics/vulkan/VulkanCommand.hpp"
+#include "serious/graphics/vulkan/VulkanPipeline.hpp"
+
+#include "serious/graphics/Camera.hpp"
 
 namespace serious
 {
@@ -17,14 +17,23 @@ public:
     VulkanRHI(const Settings& settings);
     virtual ~VulkanRHI() = default;
     virtual void Init(void* window) override;
+    virtual bool AssureResource() override;
     virtual void Shutdown() override;
     virtual void PrepareFrame() override;
     virtual void SubmitFrame() override;
     virtual void Update() override;
-    virtual SEShaderIdx CreateShader(SEShaderDescription description) override;
-    virtual SEPipeline* CreatePipeline(const std::vector<SEShaderIdx>& shaders) override;
-    virtual void BindPipeline(SEPipeline* pipeline) override;
-    virtual void DestroyPipeline(SEPipeline* pipeline) override;
+    // Deferred buffer creation
+    virtual RHIResourceIdx CreateShader(ShaderDescription description) override;
+    virtual RHIResource CreatePipeline(const std::vector<RHIResourceIdx>& shaders) override;
+    virtual RHIResourceIdx CreateBuffer(BufferDescription description) override;
+    virtual void BindPipeline(RHIResource pipeline) override;
+    virtual void DestroyPipeline(RHIResource pipeline) override;
+    virtual Camera& GetCamera() override { return m_Camera; }
+
+    virtual void SetPasses(const std::vector<RenderPassDescription>& descriptions) override;
+
+    virtual void SetClearColor(float r, float g, float b, float a) override;
+    virtual void SetClearDepth(float depth) override;
 private:
     virtual void WindowResize() override;
     void CreateInstance();
@@ -34,7 +43,6 @@ private:
     void CreateFramebuffers();
     void SetDescriptorResources();
     void UpdateUniforms();
-    void LoadObj(const std::string& path);
 private:
     Settings m_Settings;
 
@@ -62,16 +70,17 @@ private:
     std::vector<VkDescriptorSet> m_DescriptorSets;
     VulkanTexture m_TextureImage;
     VkClearValue m_ClearValues[2];
-    VulkanBuffer m_VertexBuffer;
-    VulkanBuffer m_IndexBuffer;
     std::vector<VulkanBuffer> m_UniformBuffers;
     std::vector<void*> m_UniformBufferMapped;
     VulkanPipeline* m_BoundPipline;
     VkViewport m_Viewport;
     VkRect2D m_Scissor;
-    
-    std::vector<Vertex> m_Vertices;
-    std::vector<uint32_t> m_Indices;
+
+    std::vector<BufferDescription> m_BufferDescriptions;
+    std::vector<VulkanBuffer> m_Buffers;
+    std::vector<RenderPassDescription> m_PassDescriptions;
+
+    Camera m_Camera;
 };
 
 }

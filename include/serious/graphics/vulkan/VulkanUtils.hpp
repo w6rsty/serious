@@ -1,61 +1,22 @@
 #pragma once
+#include "serious/io/log.hpp"
+
+#include <vector>
 
 #include <vulkan/vulkan.h>
 
-#include <chrono> // IWYU pragma: keep
-#include <string>
-#include <vector>
-#include <memory>
-
-#include <fmt/core.h>
-#include <fmt/color.h>
-
 namespace serious
 {
-
-template <class T>
-using Ref = std::shared_ptr<T>;
-
-template <class T, typename... Args>
-constexpr Ref<T> CreateRef(Args&&... args)
-{
-    return std::make_shared<T>(std::forward<Args>(args)...);
-}
-
-std::string ReadFile(const std::string& filename);
-
-#define VKInfo(...) \
-    do { \
-        auto now = std::chrono::current_zone()->to_local(std::chrono::system_clock::now()); \
-        fmt::println("[{}] {}", std::format("{}", now), fmt::format(__VA_ARGS__)); \
-    } while (0)
-
-#define VKWarn(...) \
-    do { \
-        auto now = std::chrono::current_zone()->to_local(std::chrono::system_clock::now()); \
-        fmt::print(fmt::fg(fmt::color::peru), "[{}] {}\n", std::format("{}", now), fmt::format(__VA_ARGS__)); \
-    } while (0)
-
-#define VKError(...) \
-    do { \
-        fmt::print(fmt::fg(fmt::color::red), "{} At {} {}\n", fmt::format(__VA_ARGS__), __FILE__, __LINE__); \
-    } while (0)
-
-#define VKFatal(...) \
-    do { \
-        fmt::print(fmt::fg(fmt::color::red), "{} At {} {} \n", fmt::format(__VA_ARGS__), __FILE__, __LINE__); \
-        std::terminate(); \
-    } while (0)
 
 #if defined(_DEBUG)
 #define VK_CHECK_RESULT(result) \
     do { \
         if (result != VK_SUCCESS) { \
-            VKError("Vulkan error : {}", VulkanResultString(result)); \
+            SEError("Vulkan error : {}", VulkanResultString(result)); \
         } \
     } while (0)
 #else
-#define VK_CHECK_RESULT(result) result
+#define VK_CHECK_RESULT(result) (void)result
 #endif
 
 /// From https://github.com/KhronosGroup/Vulkan-Samples
@@ -69,7 +30,7 @@ static inline bool validateExtension(const std::vector<const char*>& required, c
                 return strcmp(ep.extensionName, extension) == 0;
             }) == available.end()
         ) {
-            VKError("Required extension {} not found", extension);
+            SEError("Required extension {} not found", extension);
             return false;
         }
     }
@@ -87,7 +48,7 @@ static inline bool validateLayers(const std::vector<const char*>& required, cons
                 return strcmp(lp.layerName, layer) == 0;
             }) == available.end()
         ) {
-            VKError("Required layer {} not found", layer);
+            SEError("Required layer {} not found", layer);
             return false;
         }
     }

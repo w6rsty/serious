@@ -1,17 +1,14 @@
-#include "serious/vulkan/VulkanRHI.hpp"
-#include "serious/RHI.hpp"
-#include "serious/vulkan/VulkanDevice.hpp"
+#include "serious/graphics/vulkan/VulkanRHI.hpp"
+#include "serious/graphics/Objects.hpp"
+#include "serious/graphics/vulkan/VulkanDevice.hpp"
 
-#include <chrono>
 #include <string>
+#include <array>
 
-#include <SDL3/SDL_video.h>
-#define TINYOBJLOADER_IMPLEMENTATION
-#include <tiny_obj_loader.h>
 #define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <Tracy.hpp>
 
 namespace serious
 {
@@ -34,7 +31,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugUtilsMessengerCallback(VkDebugU
 {
     (void)pUserData;
     (void)messageType;
-    VKWarn("[{}] {}", VulkanDebugUtilsMessageSeverity(messageSeverity), pCallbackData->pMessage);
+    SEWarn("[{}] {}", VulkanDebugUtilsMessageSeverity(messageSeverity), pCallbackData->pMessage);
     return VK_FALSE;
 }
 
@@ -80,15 +77,11 @@ VulkanRHI::VulkanRHI(const Settings& settings)
     , m_DescriptorSets({})
     , m_TextureImage({})
     , m_ClearValues{ {}, {} }
-    , m_VertexBuffer({})
-    , m_IndexBuffer({})
     , m_UniformBuffers({})
     , m_UniformBufferMapped({})
     , m_BoundPipline(nullptr)
     , m_Viewport({})
     , m_Scissor({})
-    , m_Vertices({})
-    , m_Indices({})
 {
 }
 
@@ -124,6 +117,41 @@ void VulkanRHI::Init(void* window)
     CreateRenderPass();
     CreateFramebuffers();
     SetDescriptorResources();
+
+    m_Camera.SetPerspective(45.0f, static_cast<float>(extent.width) / static_cast<float>(extent.height), 0.1f, 1000.0f);
+    m_Camera.SetPosition(glm::vec3(0.0f, 0.0f, -2.0f));
+}
+
+bool VulkanRHI::AssureResource()
+{   
+    auto tsfCmd = m_TsfCmdPool.Allocate();
+    for (size_t i = 0; i < m_Buffers.size(); ++i) {
+        VulkanBuffer& buffer = m_Buffers[i];
+        BufferDescription& description = m_BufferDescriptions[i];
+        VkBufferUsageFlags usageFlag;
+        switch (description.usage) {
+            case BufferUsage::Vertex:
+                usageFlag = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+                break;
+            case BufferUsage::Index:
+                usageFlag = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+                break;
+            case BufferUsage::Uniform:
+                usageFlag = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+                break;
+        }
+        m_Device->CreateDeviceBuffer(
+            buffer,
+            description.size,
+            description.data,
+            usageFlag,
+            tsfCmd
+        );
+
+    }
+    m_TsfCmdPool.Free(tsfCmd);
+
+    return true;
 }
 
 void VulkanRHI::Shutdown()
@@ -137,8 +165,10 @@ void VulkanRHI::Shutdown()
     for (VulkanBuffer& buffer : m_UniformBuffers) {
         m_Device->DestroyBuffer(buffer);
     }
-    m_Device->DestroyBuffer(m_VertexBuffer);
-    m_Device->DestroyBuffer(m_IndexBuffer);
+
+    for (VulkanBuffer& buffer : m_Buffers) {
+        m_Device->DestroyBuffer(buffer);
+    }
 
     for (VulkanShaderModule& shaderModule : m_ShaderModules) {
         m_Device->DestroyShaderModule(shaderModule);
@@ -176,6 +206,7 @@ void VulkanRHI::WindowResize()
     m_Settings.width = static_cast<uint32_t>(width);
     m_Settings.height = static_cast<uint32_t>(height);
     m_Swapchain.Create(&m_Settings.width, &m_Settings.height, m_Settings.vsync);
+    m_Camera.SetPerspective(m_Camera.fov, static_cast<float>(m_Settings.width) / static_cast<float>(m_Settings.height), m_Camera.zNear, m_Camera.zFar);
 
     m_Device->DestroyTextureImage(m_DepthImage);
     auto gfxCmd = m_GfxCmdPool.Allocate();
@@ -190,6 +221,8 @@ void VulkanRHI::WindowResize()
 
 void VulkanRHI::PrepareFrame()
 {
+    ZoneScoped;
+
     VkResult result = m_Swapchain.AcquireNextImage(m_ImageAvailableSems[m_CurrentFrame], &m_SwapchainImageIndex);
 	if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
 		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -204,6 +237,8 @@ void VulkanRHI::PrepareFrame()
 
 void VulkanRHI::SubmitFrame()
 {
+    ZoneScoped;
+
     VkResult result = m_Swapchain.Present(&m_RenderFinishedSems[m_CurrentFrame], m_SwapchainImageIndex);
 	if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
 		WindowResize();
@@ -214,7 +249,6 @@ void VulkanRHI::SubmitFrame()
 	else {
 		VK_CHECK_RESULT(result);
 	}
-    m_Device->GetPresentQueue()->WaitIdle();
 }
 
 void VulkanRHI::Update()
@@ -234,7 +268,7 @@ void VulkanRHI::Update()
         gfxCmd.SetViewport(m_Viewport);
         m_Scissor.extent = extent;
         gfxCmd.SetScissor(m_Scissor);
-
+ 
         VkRenderPassBeginInfo beginInfo = {};
         beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         beginInfo.renderPass = m_RenderPass;
@@ -243,13 +277,15 @@ void VulkanRHI::Update()
         beginInfo.clearValueCount = 2;
         beginInfo.pClearValues = m_ClearValues;
 
-        gfxCmd.BeginRenderPass(beginInfo, VK_SUBPASS_CONTENTS_INLINE);
-        gfxCmd.BindGraphicsPipeline(m_BoundPipline->GetHandle());
-        gfxCmd.BindVertexBuffer(m_VertexBuffer.buffer, 0);
-        gfxCmd.BindIndexBuffer(m_IndexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-        gfxCmd.BindDescriptorSet(m_BoundPipline->GetPipelineLayout(), m_DescriptorSets[m_SwapchainImageIndex]);
-        gfxCmd.DrawIndexed(m_Indices.size(), 1, 0, 0, 0);
-        gfxCmd.EndRenderPass();
+        for (const auto& pass : m_PassDescriptions) {
+            gfxCmd.BeginRenderPass(beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+            gfxCmd.BindGraphicsPipeline(m_BoundPipline->GetHandle());
+            gfxCmd.BindVertexBuffer(m_Buffers[pass.vertexBuffer].buffer, 0);
+            gfxCmd.BindIndexBuffer(m_Buffers[pass.indexBuffer].buffer, 0, VK_INDEX_TYPE_UINT32);
+            gfxCmd.BindDescriptorSet(m_BoundPipline->GetPipelineLayout(), m_DescriptorSets[m_SwapchainImageIndex]);
+            gfxCmd.DrawIndexed(pass.size, 1, 0, 0, 0);
+            gfxCmd.EndRenderPass();
+        }
     }
     gfxCmd.End();
 
@@ -271,45 +307,66 @@ void VulkanRHI::Update()
     SubmitFrame();
 
     m_CurrentFrame = (m_CurrentFrame + 1) % m_SwapchainImageCount;
+
+    FrameMark;
 }
 
-SEShaderIdx VulkanRHI::CreateShader(SEShaderDescription description)
+RHIResourceIdx VulkanRHI::CreateShader(ShaderDescription description)
 {
     VkShaderStageFlagBits stage;
     switch (description.stage) {
-        case SEShaderStage::Vertex:
+        case ShaderStage::Vertex:
             stage = VK_SHADER_STAGE_VERTEX_BIT;
             break;
-        case SEShaderStage::Fragment:
+        case ShaderStage::Fragment:
             stage = VK_SHADER_STAGE_FRAGMENT_BIT;
             break;
-        case SEShaderStage::Compute:
+        case ShaderStage::Compute:
             stage = VK_SHADER_STAGE_COMPUTE_BIT;
             break;
     }
-    auto shaderModule = m_Device->CreateShaderModule(std::string(description.file), stage, description.entry);
-    m_ShaderModules.push_back(shaderModule);
+    m_ShaderModules.push_back(m_Device->CreateShaderModule(std::string(description.file), stage, description.entry));
     return m_ShaderModules.size() - 1;
 }
 
-SEPipeline* VulkanRHI::CreatePipeline(const std::vector<SEShaderIdx>& shaders)
+RHIResource VulkanRHI::CreatePipeline(const std::vector<RHIResourceIdx>& shaders)
 {
-    // std::vector<VulkanShader>
     std::vector<VulkanShaderModule> shaderModules;
-    for (SEShaderIdx idx : shaders) {
-        shaderModules.push_back(m_ShaderModules[idx]);
+    for (RHIResourceIdx shaderIdx : shaders) {
+        shaderModules.push_back(m_ShaderModules[shaderIdx]);
     }
     return new VulkanPipeline(m_Device.get(), shaderModules, m_RenderPass, m_Swapchain);
 }
+RHIResourceIdx VulkanRHI::CreateBuffer(BufferDescription description)
+{
+    m_BufferDescriptions.push_back(description);
+    m_Buffers.emplace_back(VulkanBuffer {});
+    return m_Buffers.size() - 1;
+}
 
-void VulkanRHI::BindPipeline(SEPipeline* pipeline)
+void VulkanRHI::BindPipeline(RHIResource pipeline)
 {
     m_BoundPipline = (VulkanPipeline*)pipeline;
 }
 
-void VulkanRHI::DestroyPipeline(SEPipeline* pipeline)
+void VulkanRHI::DestroyPipeline(RHIResource pipeline)
 {
     ((VulkanPipeline*)pipeline)->Destroy();
+}
+
+void VulkanRHI::SetPasses(const std::vector<RenderPassDescription>& descriptions)
+{
+    m_PassDescriptions = descriptions;
+}
+
+void VulkanRHI::SetClearColor(float r, float g, float b, float a)
+{
+    m_ClearValues[0].color = {{r, g, b, a}};
+}
+
+void VulkanRHI::SetClearDepth(float depth)
+{
+    m_ClearValues[1].depthStencil = {depth, 0};
 }
 
 void VulkanRHI::CreateInstance()
@@ -327,7 +384,7 @@ void VulkanRHI::CreateInstance()
         requiredInstanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
     if (!validateExtension(requiredInstanceExtensions, supportedInstanceExtensions)) {
-        VKFatal("Required extensions not found");
+        SEFatal("Required extensions not found");
     }
 
     /// Instance Layers
@@ -341,7 +398,7 @@ void VulkanRHI::CreateInstance()
         requiredInstanceLayers.insert(requiredInstanceLayers.end(), validationLayer.begin(), validationLayer.end());
     }
     if (!validateLayers(requiredInstanceLayers, supportedInstanceLayers)) {
-        VKFatal("Required layers not found");
+        SEFatal("Required layers not found");
     }
 
     VkApplicationInfo appInfo = {};
@@ -466,29 +523,7 @@ void VulkanRHI::CreateFramebuffers()
 }
 
 void VulkanRHI::SetDescriptorResources()
-{
-    m_ClearValues[0] = {{{0.1f, 0.1f, 0.1f, 1.0f}}};
-    m_ClearValues[1] = {{{1.0f, 0}}};
-    
-    LoadObj("assets/viking_room.obj");
-    auto tsfCmd = m_TsfCmdPool.Allocate();
-    m_Device->CreateDeviceBuffer(
-        m_VertexBuffer,
-        sizeof(Vertex) * m_Vertices.size(),
-        m_Vertices.data(),
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        tsfCmd
-    );
-    m_Device->CreateDeviceBuffer(
-        m_IndexBuffer,
-        sizeof(uint32_t) * m_Indices.size(),
-        m_Indices.data(),
-        VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-        tsfCmd
-    );
-    m_TsfCmdPool.Free(tsfCmd);
-
-    // Descriptor resources
+{    
     VkDeviceSize uboSize = sizeof(UniformBufferObject);
     m_UniformBuffers.resize(m_SwapchainImageCount, {});
     m_UniformBufferMapped.resize(m_SwapchainImageCount, nullptr);    
@@ -507,7 +542,7 @@ void VulkanRHI::SetDescriptorResources()
     auto gfxCmd = m_GfxCmdPool.Allocate();
     m_Device->CreateTextureImage(
         m_TextureImage,
-        "assets/viking_room.png",
+        "D:/w6rsty/dev/Cpp/serious/assets/viking_room.png",
         m_Swapchain.GetColorFormat(),
         m_Swapchain.GetComponentMapping(),
         gfxCmd
@@ -584,59 +619,12 @@ void VulkanRHI::SetDescriptorResources()
 
 void VulkanRHI::UpdateUniforms()
 {
-    static auto startTime = std::chrono::high_resolution_clock::now();
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
+    ZoneScoped;
     UniformBufferObject ubo = {};
-    ubo.model = glm::rotate(glm::mat4(1.0f), time, glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.view = glm::lookAt(glm::vec3(1.5f, 1.5f, 1.5f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.proj = glm::perspective(glm::radians(45.0f), (float)m_Settings.width / (float)m_Settings.height, 0.1f, 10.0f);
-    ubo.proj[1][1] *= -1;
+    ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    ubo.view = m_Camera.matrices.view;
+    ubo.proj = m_Camera.matrices.projection;
     memcpy(m_UniformBufferMapped[m_CurrentFrame], &ubo, sizeof(UniformBufferObject));
-}
-
-void VulkanRHI::LoadObj(const std::string& path)
-{
-    tinyobj::ObjReaderConfig reader_config;
-    tinyobj::ObjReader reader;
-    if (!reader.ParseFromFile(path.c_str(), reader_config)) {
-        if (!reader.Error().empty()) {
-            VKError("TinyObjReader error: {}", reader.Error());
-        }
-        exit(1);
-    }
-
-    auto& attrib = reader.GetAttrib();
-    auto& shapes = reader.GetShapes();
-    for (size_t s = 0; s < shapes.size(); ++s) {
-        size_t index_offset = 0;
-        for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
-            size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
-            for (size_t v = 0; v < fv; v++) {
-                Vertex vtx {};
-                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
-                tinyobj::real_t vx = attrib.vertices[3*size_t(idx.vertex_index)+0];
-                tinyobj::real_t vy = attrib.vertices[3*size_t(idx.vertex_index)+1];
-                tinyobj::real_t vz = attrib.vertices[3*size_t(idx.vertex_index)+2];
-                vtx.position = {vx, vy, vz};
-                if (idx.normal_index >= 0) {
-                    tinyobj::real_t nx = attrib.normals[3*size_t(idx.normal_index)+0];
-                    tinyobj::real_t ny = attrib.normals[3*size_t(idx.normal_index)+1];
-                    tinyobj::real_t nz = attrib.normals[3*size_t(idx.normal_index)+2];
-                    vtx.normal = {nx, ny, nz};
-                }
-                if (idx.texcoord_index >= 0) {
-                    tinyobj::real_t tx = attrib.texcoords[2*size_t(idx.texcoord_index)+0];
-                    tinyobj::real_t ty = attrib.texcoords[2*size_t(idx.texcoord_index)+1];
-                    vtx.texCoord = {tx, ty};
-                }
-                m_Vertices.push_back(vtx);
-                m_Indices.push_back(uint32_t(index_offset + v));
-            }
-            index_offset += fv;
-        }
-    }
 }
 
 }

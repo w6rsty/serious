@@ -1,6 +1,5 @@
-#include "serious/vulkan/VulkanPipeline.hpp"
-#include "serious/vulkan/Vertex.hpp"
-#include "serious/VulkanUtils.hpp"
+#include "serious/graphics/vulkan/VulkanPipeline.hpp"
+#include "serious/graphics/vulkan/Vertex.hpp"
 
 #include <array>
 
@@ -130,6 +129,7 @@ VulkanPipeline::~VulkanPipeline()
 
 void VulkanPipeline::Destroy()
 {
+    m_Device->WaitIdle();
     VkDevice deviceHandle = m_Device->GetHandle();
     vkDestroyPipelineLayout(deviceHandle, m_PipelineLayout, nullptr);
     vkDestroyPipeline(deviceHandle, m_Pipeline, nullptr);

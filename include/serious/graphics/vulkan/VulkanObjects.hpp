@@ -1,5 +1,5 @@
 #pragma once
-#include "serious/VulkanUtils.hpp"
+#include "serious/graphics/vulkan/VulkanUtils.hpp"
 
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
@@ -83,5 +83,23 @@ struct VulkanTexture
     VkImageView imageView = VK_NULL_HANDLE;
     VkSampler sampler = VK_NULL_HANDLE;
 };
+
+enum class VulkanQueueUsage
+{
+    Graphics,
+    Compute,
+    Transfer,
+    Present
+};
+
+constexpr const char* VulkanQueueUsageString(VulkanQueueUsage usage)
+{
+    switch (usage) {
+        case VulkanQueueUsage::Graphics: return "Graphics";
+        case VulkanQueueUsage::Compute: return "Compute";
+        case VulkanQueueUsage::Transfer: return "Transfer";
+        case VulkanQueueUsage::Present: return "Present";
+    }
+}
 
 }

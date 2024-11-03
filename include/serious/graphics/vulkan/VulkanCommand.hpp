@@ -1,6 +1,6 @@
 #pragma once
 
-#include "serious/vulkan/VulkanDevice.hpp"
+#include "serious/graphics/vulkan/VulkanDevice.hpp"
 
 #include <vulkan/vulkan.h>
 

@@ -1,4 +1,4 @@
-#include "serious/vulkan/Vertex.hpp"
+#include "serious/graphics/vulkan/Vertex.hpp"
 
 namespace serious
 {

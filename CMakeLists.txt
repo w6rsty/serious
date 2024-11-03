@@ -15,12 +15,35 @@ include(cmake/FindSDL3.cmake)
 add_subdirectory(thirdparty)
 
 find_program(GLSLC glslc REQUIRED)
-execute_process(COMMAND ${GLSLC} ${PROJECT_SOURCE_DIR}/shaders/shader.vert -o ${PROJECT_SOURCE_DIR}/shaders/vert.spv)
-execute_process(COMMAND ${GLSLC} ${PROJECT_SOURCE_DIR}/shaders/shader.frag -o ${PROJECT_SOURCE_DIR}/shaders/frag.spv)
 
-file(GLOB_RECURSE SRC src/*.cpp)
+file(GLOB_RECURSE SHADER_FILES "shaders/*.vert" "shaders/*.frag" "shaders/*.comp")
 
-add_library(serious STATIC ${SRC})
+foreach(SHADER_FILE ${SHADER_FILES})
+    get_filename_component(FILE_NAME ${SHADER_FILE} NAME_WE)
+    get_filename_component(FILE_EXT ${SHADER_FILE} LAST_EXT)
+    string(REPLACE "." "" EXT_NO_DOT "${FILE_EXT}")
+    set(SPIRV_FILE "${PROJECT_SOURCE_DIR}/shaders/${FILE_NAME}_${EXT_NO_DOT}.spv")
+    add_custom_command(
+        OUTPUT ${SPIRV_FILE}
+        COMMAND ${GLSLC} ${SHADER_FILE} -o ${SPIRV_FILE}
+        DEPENDS ${SHADER_FILE}
+        COMMENT "Compiling ${SHADER_FILE} to ${SPIRV_FILE}"
+    )
+    list(APPEND SPIRV_FILES ${SPIRV_FILE})
+endforeach()
+
+add_custom_target(compile_shaders ALL DEPENDS ${SPIRV_FILES})
+
+file(GLOB_RECURSE SERIOUS_HDR
+    "include/serious/**/*.hpp"
+    "include/serious/*.hpp")
+file(GLOB_RECURSE SERIOUS_SRC "src/**/*.cpp")
+
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/include PREFIX "Header Files" FILES ${SERIOUS_HDR})
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src PREFIX "Source Files" FILES ${SERIOUS_SRC})
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/shaders PREFIX "Shader Files" FILES ${SERIOUS_SHADERS})
+
+add_library(serious STATIC ${SERIOUS_SRC})
 target_include_directories(serious PUBLIC include)
 target_link_libraries(serious PUBLIC Vulkan::Vulkan fmt glm STB tinyobjloader SDL3::SDL3)
 target_compile_features(serious PUBLIC cxx_std_20)

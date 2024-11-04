@@ -1,4 +1,5 @@
 #pragma once
+#include "serious/graphics/Objects.hpp"
 #include "serious/graphics/vulkan/VulkanDevice.hpp"
 #include "serious/graphics/vulkan/VulkanSwapchain.hpp"
 
@@ -14,6 +15,7 @@ class VulkanPipeline final
 public:
     VulkanPipeline(VulkanDevice* device,
                    const std::vector<VulkanShaderModule>& shaders,
+                   ColorBlendingMode blendingMode,
                    VkRenderPass renderPass,
                    VulkanSwapchain& swapchain);
     ~VulkanPipeline();

@@ -1,4 +1,5 @@
 #include "serious/graphics/vulkan/VulkanPipeline.hpp"
+#include "serious/graphics/Objects.hpp"
 #include "serious/graphics/vulkan/Vertex.hpp"
 
 #include <array>
@@ -9,6 +10,7 @@ namespace serious
 VulkanPipeline::VulkanPipeline(
     VulkanDevice* device,
     const std::vector<VulkanShaderModule>& shaders,
+    ColorBlendingMode blendingMode,
     VkRenderPass renderPass,
     VulkanSwapchain& swapchain)
     : m_Pipeline(VK_NULL_HANDLE)
@@ -55,7 +57,7 @@ VulkanPipeline::VulkanPipeline(
     rastState.rasterizerDiscardEnable = VK_FALSE;
     rastState.lineWidth = 1.0f;
     rastState.polygonMode = VK_POLYGON_MODE_FILL;
-    rastState.cullMode = VK_CULL_MODE_BACK_BIT;
+    rastState.cullMode = VK_CULL_MODE_NONE;
     rastState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
     VkPipelineMultisampleStateCreateInfo multiSampleState {};
@@ -63,8 +65,28 @@ VulkanPipeline::VulkanPipeline(
     multiSampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
     VkPipelineColorBlendAttachmentState colorBlendAttachment {};
-    colorBlendAttachment.blendEnable = VK_FALSE;
+    colorBlendAttachment.blendEnable = blendingMode == ColorBlendingMode::None ? VK_FALSE : VK_TRUE;
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    switch (blendingMode) {
+        case ColorBlendingMode::Additive:
+            colorBlendAttachment.blendEnable = VK_TRUE;
+            colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+            colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+            colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+            break;
+        case ColorBlendingMode::AlphaBlending:
+            colorBlendAttachment.blendEnable = VK_TRUE;
+            colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+            colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+            break;
+        default:
+            break;
+    }
+    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+    
     VkPipelineColorBlendStateCreateInfo colorBlendState = {};
     colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     colorBlendState.attachmentCount = 1;

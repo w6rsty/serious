@@ -46,20 +46,27 @@ public:
         rhi = std::make_unique<VulkanRHI>(settings);
         rhi->SetAPI(GraphicsAPI::Vulkan);
         rhi->Init(window);
-        rhi->SetClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        rhi->SetClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         rhi->SetClearDepth(1.0f);
 
+        Camera& camera = rhi->GetCamera();
+        camera.SetRotationSpeed(0.1f);
+
         RHIResourceIdx vertShader = rhi->CreateShader({
-            .file  = "D:/w6rsty/dev/Cpp/serious/shaders/test_vert.spv",
+            .file  = "D:/w6rsty/dev/Cpp/serious/shaders/grid_vert.spv",
             .stage = ShaderStage::Vertex
         });
         RHIResourceIdx fragShader = rhi->CreateShader({
-            .file  = "D:/w6rsty/dev/Cpp/serious/shaders/test_frag.spv",
+            .file  = "D:/w6rsty/dev/Cpp/serious/shaders/grid_frag.spv",
             .stage = ShaderStage::Fragment
         });
 
         // Setup pipeline
-        pipeline = rhi->CreatePipeline({vertShader, fragShader});
+        PipelineDescription pipelineDescription = {
+            .shaders = {vertShader, fragShader},
+            .blendingMode = ColorBlendingMode::AlphaBlending
+        };
+        pipeline = rhi->CreatePipeline(pipelineDescription);
         rhi->BindPipeline(pipeline);
 
         RHIResourceIdx vertexBuffer = rhi->CreateBuffer({
@@ -85,7 +92,6 @@ public:
 
     void Run()
     {
-
         if (!rhi->AssureResource()) {
             SEError("Uncompleted resources");
             return;
@@ -95,13 +101,15 @@ public:
             static auto startTime = std::chrono::high_resolution_clock::now();
             auto currentTime = std::chrono::high_resolution_clock::now();
             float deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+            startTime = currentTime;
             if (HandleEvent() == State::Quit) {
+                running = false;
+                SEInfo("Window closed");
                 break;
             }
 
             Camera& camera = rhi->GetCamera();
             camera.Update(deltaTime);
-            startTime = currentTime;
 
             rhi->Update();
         }
@@ -156,6 +164,20 @@ private:
                     camera.keys.down = false;
                 }
             }
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+                if (event.button.button == SDL_BUTTON_LEFT) {
+                    clickx = event.button.x;
+                    clicky = event.button.y;
+                }
+            }
+            if (event.type == SDL_EVENT_MOUSE_MOTION) {
+                if (event.motion.state & SDL_BUTTON_LMASK) {
+                    glm::vec3 delta = glm::vec3(clicky - event.motion.y, event.motion.x - clickx, 0.0f);
+                    camera.Rotate(delta);
+                    clickx = event.motion.x;
+                    clicky = event.motion.y;
+                }
+            }
         }
         return State::Continue;
     }
@@ -165,12 +187,13 @@ private:
         .width = 800,
         .height = 600,
         .validation = true,
-        .vsync = true
+        .vsync = false,
     };
     SDL_Window* window = nullptr;
 
     std::unique_ptr<RHI> rhi;
     RHIResource pipeline;
+    int clickx, clicky;
 
     bool running = false;
 };

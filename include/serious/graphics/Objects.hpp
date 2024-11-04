@@ -1,4 +1,5 @@
 #pragma once
+#include <vector>
 #include <string_view>
 
 namespace serious
@@ -35,6 +36,19 @@ enum class BufferUsage
     Vertex,
     Index,
     Uniform
+};
+
+enum class ColorBlendingMode
+{
+    None,
+    Additive,
+    AlphaBlending
+};
+
+struct PipelineDescription
+{
+    std::vector<RHIResourceIdx> shaders;
+    ColorBlendingMode blendingMode;
 };
 
 struct BufferDescription

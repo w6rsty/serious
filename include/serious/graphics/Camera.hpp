@@ -24,7 +24,11 @@ public:
     void SetRotation(const glm::vec3& rotation);
     inline void SetMovementSpeed(float speed) { m_MovementSpeed = speed; }
     inline void SetRotationSpeed(float speed) { m_RotationSpeed = speed; }
+    inline float GetMovementSpeed() const { return m_MovementSpeed; }
+    inline float GetRotationSpeed() const { return m_RotationSpeed; }
 private:
+    void UpdateCameraPosition(float deltaTime);
+    glm::vec3 CalculateFrontVector() const;
     void UpdateViewMatrix();
 private:
     float m_RotationSpeed = 1.0f;

@@ -145,8 +145,9 @@ void VulkanSwapchain::Create(uint32_t* width, uint32_t* height, bool vsync)
     swapchainInfo.oldSwapchain = oldSwapchain;
     VK_CHECK_RESULT(vkCreateSwapchainKHR(device, &swapchainInfo, nullptr, &m_Swapchain));
 
-    SEInfo(
-        "Create swapchain {} | {} | {} | num images {}:{}x{}",
+    SETrace(
+        "Create swapchain(0x{:x}) {} | {} | {} | num images {}:{}x{}",
+        (size_t)m_Swapchain,
         VulkanPresentModeString(m_PresentMode),
         VulkanFormatString(m_ColorFormat),
         VulkanColorSpaceString(m_ColorSpace),

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "serious/graphics/Objects.hpp"
 #include "serious/graphics/RHI.hpp"
 #include "serious/graphics/vulkan/VulkanDevice.hpp"
 #include "serious/graphics/vulkan/VulkanSwapchain.hpp"
@@ -23,9 +24,9 @@ public:
     virtual void SubmitFrame() override;
     virtual void Update() override;
     // Deferred buffer creation
-    virtual RHIResourceIdx CreateShader(ShaderDescription description) override;
-    virtual RHIResource CreatePipeline(const std::vector<RHIResourceIdx>& shaders) override;
-    virtual RHIResourceIdx CreateBuffer(BufferDescription description) override;
+    virtual RHIResourceIdx CreateShader(const ShaderDescription& description) override;
+    virtual RHIResource CreatePipeline(const PipelineDescription& description) override;
+    virtual RHIResourceIdx CreateBuffer(const BufferDescription& description) override;
     virtual void BindPipeline(RHIResource pipeline) override;
     virtual void DestroyPipeline(RHIResource pipeline) override;
     virtual Camera& GetCamera() override { return m_Camera; }

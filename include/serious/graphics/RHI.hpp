@@ -1,7 +1,6 @@
 #pragma once
-#include "Objects.hpp"
-#include "serious/graphics/Camera.hpp"
 #include "serious/graphics/Objects.hpp"
+#include "serious/graphics/Camera.hpp"
 
 namespace serious
 {
@@ -19,9 +18,9 @@ public:
     virtual void Update() {};
     // RHI implementation maintains a structure to hold shader handles
     // and is responsible for creating and destroying them
-    virtual RHIResourceIdx CreateShader(ShaderDescription description) = 0;
-    virtual RHIResource CreatePipeline(const std::vector<RHIResourceIdx>& shaders) = 0;
-    virtual RHIResourceIdx CreateBuffer(BufferDescription decription) = 0;
+    virtual RHIResourceIdx CreateShader(const ShaderDescription& description) = 0;
+    virtual RHIResource CreatePipeline(const PipelineDescription& description) = 0;
+    virtual RHIResourceIdx CreateBuffer(const BufferDescription& decription) = 0;
     virtual void BindPipeline(RHIResource pipeline) = 0;
     virtual void DestroyPipeline(RHIResource pipeline) = 0;
 

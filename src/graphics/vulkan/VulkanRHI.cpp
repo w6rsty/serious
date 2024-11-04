@@ -1,4 +1,5 @@
 #include "serious/graphics/vulkan/VulkanRHI.hpp"
+#include "glm/ext/matrix_transform.hpp"
 #include "serious/graphics/Objects.hpp"
 #include "serious/graphics/vulkan/VulkanDevice.hpp"
 
@@ -83,6 +84,7 @@ VulkanRHI::VulkanRHI(const Settings& settings)
     , m_Viewport({})
     , m_Scissor({})
 {
+    s_API = GraphicsAPI::Vulkan;
 }
 
 void VulkanRHI::Init(void* window)
@@ -118,7 +120,7 @@ void VulkanRHI::Init(void* window)
     CreateFramebuffers();
     SetDescriptorResources();
 
-    m_Camera.SetPerspective(45.0f, static_cast<float>(extent.width) / static_cast<float>(extent.height), 0.1f, 1000.0f);
+    m_Camera.SetPerspective(60.0f, static_cast<float>(extent.width) / static_cast<float>(extent.height), 0.1f, 1000.0f);
     m_Camera.SetPosition(glm::vec3(0.0f, 0.0f, -2.0f));
 }
 
@@ -311,7 +313,7 @@ void VulkanRHI::Update()
     FrameMark;
 }
 
-RHIResourceIdx VulkanRHI::CreateShader(ShaderDescription description)
+RHIResourceIdx VulkanRHI::CreateShader(const ShaderDescription& description)
 {
     VkShaderStageFlagBits stage;
     switch (description.stage) {
@@ -329,15 +331,15 @@ RHIResourceIdx VulkanRHI::CreateShader(ShaderDescription description)
     return m_ShaderModules.size() - 1;
 }
 
-RHIResource VulkanRHI::CreatePipeline(const std::vector<RHIResourceIdx>& shaders)
+RHIResource VulkanRHI::CreatePipeline(const PipelineDescription& description)
 {
     std::vector<VulkanShaderModule> shaderModules;
-    for (RHIResourceIdx shaderIdx : shaders) {
+    for (RHIResourceIdx shaderIdx : description.shaders) {
         shaderModules.push_back(m_ShaderModules[shaderIdx]);
     }
-    return new VulkanPipeline(m_Device.get(), shaderModules, m_RenderPass, m_Swapchain);
+    return new VulkanPipeline(m_Device.get(), shaderModules, description.blendingMode, m_RenderPass, m_Swapchain);
 }
-RHIResourceIdx VulkanRHI::CreateBuffer(BufferDescription description)
+RHIResourceIdx VulkanRHI::CreateBuffer(const BufferDescription& description)
 {
     m_BufferDescriptions.push_back(description);
     m_Buffers.emplace_back(VulkanBuffer {});
@@ -562,7 +564,6 @@ void VulkanRHI::SetDescriptorResources()
     samplerLayoutBinding.pImmutableSamplers = nullptr;
     samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     
-    m_DescriptorSets.resize(m_SwapchainImageCount, VK_NULL_HANDLE);
     m_Device->SetDescriptorSetLayout({
         uboLayoutBinding,
         samplerLayoutBinding
@@ -576,7 +577,7 @@ void VulkanRHI::SetDescriptorResources()
         m_SwapchainImageCount
     );
 
-    m_DescriptorSets.resize(m_SwapchainImageCount);
+    m_DescriptorSets.resize(m_SwapchainImageCount, VK_NULL_HANDLE);
     m_Device->AllocateDescriptorSets(m_DescriptorSets);
 
     for (uint32_t i = 0; i < m_SwapchainImageCount; ++i) {
@@ -621,7 +622,7 @@ void VulkanRHI::UpdateUniforms()
 {
     ZoneScoped;
     UniformBufferObject ubo = {};
-    ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, 0.0f)) * glm::scale(glm::mat4(1.0f), glm::vec3(100.0f));
     ubo.view = m_Camera.matrices.view;
     ubo.proj = m_Camera.matrices.projection;
     memcpy(m_UniformBufferMapped[m_CurrentFrame], &ubo, sizeof(UniformBufferObject));
